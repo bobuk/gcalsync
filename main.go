@@ -1,0 +1,33 @@
+package main
+
+import (
+	"fmt"
+	"os"
+	"log"
+)
+
+func main() {
+	if len(os.Args) < 2 {
+		fmt.Println("Usage: gcalsync (add|sync|desync)")
+		os.Exit(1)
+	}
+	config, err := readConfig(".gcalsync.toml")
+    if err != nil {
+        log.Fatalf("Error reading config file: %v", err)
+    }
+    initOAuthConfig(config)
+	command := os.Args[1]
+	switch command {
+	case "add":
+		addCalendar()
+	case "sync":
+		syncCalendars()
+	case "desync":
+		desyncCalendars()
+	case "cleanup":
+		cleanupCalendars()
+	default:
+		fmt.Printf("Unknown command: %s\n", command)
+		os.Exit(1)
+	}
+}
