@@ -22,6 +22,7 @@ type Config struct {
 }
 
 var oauthConfig *oauth2.Config
+var configDir string
 
 func initOAuthConfig(config *Config) {
 	oauthConfig = &oauth2.Config{
@@ -34,9 +35,14 @@ func initOAuthConfig(config *Config) {
 }
 
 func readConfig(filename string) (*Config, error) {
+	// Try first current dir, then `$HOME/.config/gcalsync/`
 	data, err := os.ReadFile(filename)
 	if err != nil {
-		return nil, err
+		data, err = os.ReadFile(os.Getenv("HOME") + "/.config/gcalsync/" + filename)
+		if err != nil {
+			return nil, err
+		}
+		configDir = os.Getenv("HOME") + "/.config/gcalsync/"
 	}
 
 	var config Config
@@ -48,7 +54,16 @@ func readConfig(filename string) (*Config, error) {
 }
 
 func openDB(filename string) (*sql.DB, error) {
-	return sql.Open("sqlite3", filename)
+	// Try first the same dir, where the config file was found
+	db, err := sql.Open("sqlite3", configDir+filename)
+	if err != nil {
+		// Try the current dir
+		db, err = sql.Open("sqlite3", filename)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return db, nil
 }
 
 func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {

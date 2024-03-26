@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"strings"
 
 	"google.golang.org/api/calendar/v3"
@@ -13,11 +12,7 @@ import (
 func cleanupCalendars() {
 	db, err := openDB(".gcalsync.db")
 	if err != nil {
-		// Give it another try in the home directory
-		db, err = openDB(os.Getenv("HOME") + "/" + ".gcalsync.db")
-		if err != nil {
-			log.Fatalf("Error opening database: %v", err)
-		}
+		log.Fatalf("Error opening database: %v", err)
 	}
 	defer db.Close()
 

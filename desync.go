@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"os"
 
 	"google.golang.org/api/calendar/v3"
 	"google.golang.org/api/googleapi"
@@ -15,11 +14,7 @@ func desyncCalendars() {
 	ctx := context.Background()
 	db, err := openDB(".gcalsync.db")
 	if err != nil {
-		// Give it another try in the home directory
-		db, err = openDB(os.Getenv("HOME") + "/" + ".gcalsync.db")
-		if err != nil {
-			log.Fatalf("Error opening database: %v", err)
-		}
+		log.Fatalf("Error opening database: %v", err)
 	}
 	defer db.Close()
 
