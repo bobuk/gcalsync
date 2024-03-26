@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -20,7 +21,11 @@ func syncCalendars() {
 
 	db, err := openDB(".gcalsync.db")
 	if err != nil {
-		log.Fatalf("Error opening database: %v", err)
+		// Give it another try in the home directory
+		db, err = openDB(os.Getenv("HOME") + "/" + ".gcalsync.db")
+		if err != nil {
+			log.Fatalf("Error opening database: %v", err)
+		}
 	}
 	defer db.Close()
 	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS blocker_events (

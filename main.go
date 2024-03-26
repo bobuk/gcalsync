@@ -13,7 +13,11 @@ func main() {
 	}
 	config, err := readConfig(".gcalsync.toml")
 	if err != nil {
-		log.Fatalf("Error reading config file: %v", err)
+		// Try reading from the home directory
+		config, err = readConfig(os.Getenv("HOME") + "/" + ".gcalsync.toml")
+		if err != nil {
+			log.Fatalf("Error reading config file: %v", err)
+		}
 	}
 	initOAuthConfig(config)
 	command := os.Args[1]

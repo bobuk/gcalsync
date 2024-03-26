@@ -2,9 +2,10 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
-	"database/sql"
+	"os"
 
 	"google.golang.org/api/calendar/v3"
 	"google.golang.org/api/googleapi"
@@ -14,7 +15,11 @@ func desyncCalendars() {
 	ctx := context.Background()
 	db, err := openDB(".gcalsync.db")
 	if err != nil {
-		log.Fatalf("Error opening database: %v", err)
+		// Give it another try in the home directory
+		db, err = openDB(os.Getenv("HOME") + "/" + ".gcalsync.db")
+		if err != nil {
+			log.Fatalf("Error opening database: %v", err)
+		}
 	}
 	defer db.Close()
 
@@ -27,9 +32,9 @@ func desyncCalendars() {
 	defer rows.Close()
 
 	var eventIDCalendarIDPairs []struct {
-			EventID    string
-			CalendarID string
-		}
+		EventID    string
+		CalendarID string
+	}
 
 	for rows.Next() {
 		var eventID, calendarID, accountName string

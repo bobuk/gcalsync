@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -13,12 +14,20 @@ import (
 func addCalendar() {
 	config, err := readConfig(".gcalsync.toml")
 	if err != nil {
-		log.Fatalf("Error reading config file: %v", err)
+		// Try reading from the home directory
+		config, err = readConfig(os.Getenv("HOME") + "/" + ".gcalsync.toml")
+		if err != nil {
+			log.Fatalf("Error reading config file: %v", err)
+		}
 	}
 
 	db, err := openDB(".gcalsync.db")
 	if err != nil {
-		log.Fatalf("Error opening database: %v", err)
+		// Give it another try in the home directory
+		db, err = openDB(os.Getenv("HOME") + "/" + ".gcalsync.db")
+		if err != nil {
+			log.Fatalf("Error opening database: %v", err)
+		}
 	}
 	defer db.Close()
 

@@ -5,16 +5,15 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/BurntSushi/toml"
+	_ "github.com/mattn/go-sqlite3"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/calendar/v3"
-	_ "github.com/mattn/go-sqlite3"
-
 )
 
 type Config struct {
@@ -25,17 +24,17 @@ type Config struct {
 var oauthConfig *oauth2.Config
 
 func initOAuthConfig(config *Config) {
-       oauthConfig = &oauth2.Config{
-               ClientID:     config.ClientID,
-               ClientSecret: config.ClientSecret,
-               Endpoint:     google.Endpoint,
-               RedirectURL:  "urn:ietf:wg:oauth:2.0:oob",
-               Scopes:       []string{calendar.CalendarScope},
-       }
+	oauthConfig = &oauth2.Config{
+		ClientID:     config.ClientID,
+		ClientSecret: config.ClientSecret,
+		Endpoint:     google.Endpoint,
+		RedirectURL:  "urn:ietf:wg:oauth:2.0:oob",
+		Scopes:       []string{calendar.CalendarScope},
+	}
 }
 
 func readConfig(filename string) (*Config, error) {
-	data, err := ioutil.ReadFile(filename)
+	data, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}
