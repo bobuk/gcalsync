@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"log"
+	"os"
 )
 
 func main() {
@@ -12,10 +12,10 @@ func main() {
 		os.Exit(1)
 	}
 	config, err := readConfig(".gcalsync.toml")
-    if err != nil {
-        log.Fatalf("Error reading config file: %v", err)
-    }
-    initOAuthConfig(config)
+	if err != nil {
+		log.Fatalf("Error reading config file: %v", err)
+	}
+	initOAuthConfig(config)
 	command := os.Args[1]
 	switch command {
 	case "add":
@@ -26,6 +26,8 @@ func main() {
 		desyncCalendars()
 	case "cleanup":
 		cleanupCalendars()
+	case "list":
+		listCalendars()
 	default:
 		fmt.Printf("Unknown command: %s\n", command)
 		os.Exit(1)
