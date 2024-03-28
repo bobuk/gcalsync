@@ -49,6 +49,8 @@ Say goodbye to calendar conflicts and hello to seamless synchronization. 🎉
 
     Don't forget to choose the appropriate OAuth2 consent screen settings and add the necessary scopes for the Google Calendar API, also double check that you are select "Desktop app" as application type.
 
+    You can move the file to `~/.config/gcalsync/.gcalsync.toml` to avoid storing sensitive data in the project directory. In this case your database file will be created in `~/.config/gcalsync/` as well.
+
 5. Build the executable:
 
     ```
@@ -67,6 +69,10 @@ Say goodbye to calendar conflicts and hello to seamless synchronization. 🎉
     - To desync calendars:
         ```
         ./gcalsync desync
+        ```
+    - To list all calendars:
+        ```
+        ./gcalsync list
         ```
 
 ## 📚 Documentation
