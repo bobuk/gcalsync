@@ -69,6 +69,7 @@ func getCalendarsFromDB(db *sql.DB) map[string][]string {
 
 func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID string, calendars map[string][]string, accountName string) {
 	ctx := context.Background()
+	calendarService = tokenExpired(db, accountName, calendarService, ctx)
 	pageToken := ""
 
 	now := time.Now()

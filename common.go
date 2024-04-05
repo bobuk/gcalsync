@@ -8,6 +8,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/BurntSushi/toml"
 	_ "github.com/mattn/go-sqlite3"
@@ -112,5 +114,65 @@ func getClient(ctx context.Context, config *oauth2.Config, db *sql.DB, accountNa
 		log.Fatalf("Error unmarshaling token: %v", err)
 	}
 
+	tokenSource := config.TokenSource(ctx, &token)
+	newToken, err := tokenSource.Token()
+	if err != nil {
+		if strings.Contains(err.Error(), "Token has been expired or revoked") {
+			fmt.Printf("Token expired or revoked for account %s. Obtaining a new token.\n", accountName)
+			newToken = getTokenFromWeb(config)
+			saveToken(db, accountName, newToken)
+			return config.Client(ctx, newToken)
+		}
+		log.Fatalf("Error retrieving token from token source: %v", err)
+	}
+
+	if newToken.AccessToken != token.AccessToken {
+		fmt.Printf("Token refreshed for account %s.\n", accountName)
+		saveToken(db, accountName, newToken)
+	}
+
+	// Check if the token is expired and refresh it if necessary
+	if token.Expiry.Before(time.Now()) {
+		fmt.Printf("Token expired for account %s. Refreshing token.\n", accountName)
+		newToken, err := config.TokenSource(ctx, &token).Token()
+		if err != nil {
+			log.Fatalf("Error refreshing token: %v", err)
+		}
+		saveToken(db, accountName, newToken)
+		return config.Client(ctx, newToken)
+	}
+
 	return config.Client(ctx, &token)
+}
+
+// Check if the token has expired and refresh if necessary, return updated calendarService
+func tokenExpired(db *sql.DB, accountName string, calendarService *calendar.Service, ctx context.Context) *calendar.Service {
+	var tokenJSON []byte
+	err := db.QueryRow("SELECT token FROM tokens WHERE account_name = ?", accountName).Scan(&tokenJSON)
+	if err != nil {
+		log.Fatalf("Error retrieving token from database: %v", err)
+	}
+
+	var token oauth2.Token
+	err = json.Unmarshal(tokenJSON, &token)
+	if err != nil {
+		log.Fatalf("Error unmarshaling token: %v", err)
+	}
+
+	if token.Expiry.Before(time.Now()) {
+		fmt.Printf("Token expired for account %s. Refreshing token.\n", accountName)
+		newToken, err := oauthConfig.TokenSource(ctx, &token).Token()
+		if err != nil {
+			log.Fatalf("Error refreshing token: %v", err)
+		}
+		saveToken(db, accountName, newToken)
+
+		// Create new calendar service with updated token
+		calendarService, err = calendar.New(oauthConfig.Client(ctx, newToken))
+		if err != nil {
+			log.Fatalf("Unable to create new calendar service: %v", err)
+		}
+	}
+
+	return calendarService
 }
