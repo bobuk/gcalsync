@@ -16,6 +16,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/calendar/v3"
+	"google.golang.org/api/option"
 )
 
 type Config struct {
@@ -168,7 +169,7 @@ func tokenExpired(db *sql.DB, accountName string, calendarService *calendar.Serv
 		saveToken(db, accountName, newToken)
 
 		// Create new calendar service with updated token
-		calendarService, err = calendar.New(oauthConfig.Client(ctx, newToken))
+		calendarService, err = calendar.NewService(ctx, option.WithHTTPClient(oauthConfig.Client(ctx, newToken)))
 		if err != nil {
 			log.Fatalf("Unable to create new calendar service: %v", err)
 		}

@@ -8,6 +8,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/calendar/v3"
+	"google.golang.org/api/option"
 )
 
 func addCalendar() {
@@ -57,7 +58,7 @@ func addCalendar() {
 
 	client := getClient(ctx, oauthConfig, db, accountName)
 
-	calendarService, err := calendar.New(client)
+	calendarService, err := calendar.NewService(ctx, option.WithHTTPClient(client))
 	if err != nil {
 		log.Fatalf("Error creating calendar client: %v", err)
 	}

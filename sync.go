@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"google.golang.org/api/calendar/v3"
+	"google.golang.org/api/option"
 )
 
 func syncCalendars() {
@@ -38,7 +39,7 @@ func syncCalendars() {
 	for accountName, calendarIDs := range calendars {
 		fmt.Printf("📅 Syncing calendars for account: %s\n", accountName)
 		client := getClient(ctx, oauthConfig, db, accountName)
-		calendarService, err := calendar.New(client)
+		calendarService, err := calendar.NewService(ctx, option.WithHTTPClient(client))
 		if err != nil {
 			log.Fatalf("Error creating calendar client: %v", err)
 		}
@@ -105,7 +106,7 @@ func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID stri
 							}
 
 							client := getClient(ctx, oauthConfig, db, otherAccountName)
-							otherCalendarService, err := calendar.New(client)
+							otherCalendarService, err := calendar.NewService(ctx, option.WithHTTPClient(client))
 							if err != nil {
 								log.Fatalf("Error creating calendar client: %v", err)
 							}
