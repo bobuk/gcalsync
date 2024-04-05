@@ -100,7 +100,7 @@ func getClient(ctx context.Context, config *oauth2.Config, db *sql.DB, accountNa
 	err := db.QueryRow("SELECT token FROM tokens WHERE account_name = ?", accountName).Scan(&tokenJSON)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			fmt.Printf("No token found for account %s. Obtaining a new token.\n", accountName)
+			fmt.Printf("  ❗️ No token found for account %s. Obtaining a new token.\n", accountName)
 			token := getTokenFromWeb(config)
 			saveToken(db, accountName, token)
 			return config.Client(ctx, token)
@@ -118,7 +118,7 @@ func getClient(ctx context.Context, config *oauth2.Config, db *sql.DB, accountNa
 	newToken, err := tokenSource.Token()
 	if err != nil {
 		if strings.Contains(err.Error(), "Token has been expired or revoked") {
-			fmt.Printf("Token expired or revoked for account %s. Obtaining a new token.\n", accountName)
+			fmt.Printf("  ❗️ Token expired or revoked for account %s. Obtaining a new token.\n", accountName)
 			newToken = getTokenFromWeb(config)
 			saveToken(db, accountName, newToken)
 			return config.Client(ctx, newToken)
@@ -133,7 +133,7 @@ func getClient(ctx context.Context, config *oauth2.Config, db *sql.DB, accountNa
 
 	// Check if the token is expired and refresh it if necessary
 	if token.Expiry.Before(time.Now()) {
-		fmt.Printf("Token expired for account %s. Refreshing token.\n", accountName)
+		fmt.Printf("  ❗️ Token expired for account %s. Refreshing token.\n", accountName)
 		newToken, err := config.TokenSource(ctx, &token).Token()
 		if err != nil {
 			log.Fatalf("Error refreshing token: %v", err)
@@ -160,7 +160,7 @@ func tokenExpired(db *sql.DB, accountName string, calendarService *calendar.Serv
 	}
 
 	if token.Expiry.Before(time.Now()) {
-		fmt.Printf("Token expired for account %s. Refreshing token.\n", accountName)
+		fmt.Printf("  ❗️ Token expired for account %s. Refreshing token.\n", accountName)
 		newToken, err := oauthConfig.TokenSource(ctx, &token).Token()
 		if err != nil {
 			log.Fatalf("Error refreshing token: %v", err)
