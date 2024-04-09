@@ -102,4 +102,4 @@ This project is licensed under the [MIT License](https://opensource.org/licenses
 -   The terrible [Go](https://golang.org/) programming language
 -   The [Google Calendar API](https://developers.google.com/calendar) for making this project almost impossible to implement
 -   The [OAuth2](https://oauth.net/2/) protocol for very missleading but secure authentication
--   The [SQLite](https://www.sqlite.org/) database for lightweight and efficient storage, the only one that is add no pain.
+-   The [SQLite](https://www.sqlite.org/) database for lightweight and efficient storage, the only one that added no pain.
