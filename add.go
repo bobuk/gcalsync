@@ -23,21 +23,6 @@ func addCalendar() {
 	}
 	defer db.Close()
 
-	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS tokens (
-		account_name TEXT PRIMARY KEY,
-		token TEXT
-	)`)
-	if err != nil {
-		log.Fatalf("Error creating tokens table: %v", err)
-	}
-	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS calendars (
-		account_name TEXT,
-		calendar_id TEXT,
-		PRIMARY KEY (account_name, calendar_id)
-	)`)
-	if err != nil {
-		log.Fatalf("Error creating calendars table: %v", err)
-	}
 	fmt.Println("🚀 Starting calendar addition...")
 	fmt.Print("👤 Enter account name: ")
 	var accountName string

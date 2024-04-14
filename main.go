@@ -16,6 +16,7 @@ func main() {
 		log.Fatalf("Error reading config file: %v", err)
 	}
 	initOAuthConfig(config)
+	dbInit()
 	command := os.Args[1]
 	switch command {
 	case "add":
