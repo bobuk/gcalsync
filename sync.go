@@ -24,13 +24,6 @@ func syncCalendars() {
 		log.Fatalf("Error opening database: %v", err)
 	}
 	defer db.Close()
-	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS blocker_events (
-			event_id TEXT,
-			calendar_id TEXT,
-			account_name TEXT,
-			origin_event_id TEXT,
-			PRIMARY KEY (calendar_id, origin_event_id)
-	)`)
 
 	calendars := getCalendarsFromDB(db)
 
