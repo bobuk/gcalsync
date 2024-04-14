@@ -61,4 +61,18 @@ func dbInit() {
 			log.Fatalf("Error updating db_version table: %v", err)
 		}
 	}
+
+	if dbVersion == 1 {
+		_, err = db.Exec(`ALTER TABLE blocker_events ADD COLUMN last_updated TEXT`)
+		if err != nil {
+			log.Fatalf("Error adding last_updated column to blocker_events table: %v", err)
+		}
+
+		dbVersion = 2
+		_, err = db.Exec(`UPDATE db_version SET version = 2 WHERE name = 'gcalsync'`)
+		if err != nil {
+			log.Fatalf("Error updating db_version table: %v", err)
+		}
+
+	}
 }
