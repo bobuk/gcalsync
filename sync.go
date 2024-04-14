@@ -92,9 +92,10 @@ func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID stri
 					for _, otherCalendarID := range calendarIDs {
 						if otherCalendarID != calendarID {
 							var existingBlockerEventID string
-							err := db.QueryRow("SELECT event_id FROM blocker_events WHERE calendar_id = ? AND origin_event_id = ?", otherCalendarID, event.Id).Scan(&existingBlockerEventID)
-							if err == nil {
-								fmt.Printf("      ⚠️ Blocker event already exists for origin event ID %s in calendar %s\n", event.Id, otherCalendarID)
+							var last_updated string
+							err := db.QueryRow("SELECT event_id, last_updated FROM blocker_events WHERE calendar_id = ? AND origin_event_id = ?", otherCalendarID, event.Id, event.Updated).Scan(&existingBlockerEventID, &last_updated)
+							if err == nil && last_updated == event.Updated {
+								fmt.Printf("      ⚠️ Blocker event already exists for origin event ID %s in calendar %s\n and up to date", event.Id, otherCalendarID)
 								continue
 							}
 
@@ -123,13 +124,18 @@ func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID stri
 									{Email: otherCalendarID},
 								},
 							}
+							var res *calendar.Event
 
-							res, err := otherCalendarService.Events.Insert(otherCalendarID, blockerEvent).Do()
+							if existingBlockerEventID != "" {
+								res, err = otherCalendarService.Events.Update(otherCalendarID, existingBlockerEventID, blockerEvent).Do()
+							} else {
+								res, err = otherCalendarService.Events.Insert(otherCalendarID, blockerEvent).Do()
+							}
 							if err == nil {
-								fmt.Printf("      ➕ Blocker event created: %s\n", blockerEvent.Summary)
+								fmt.Printf("      ➕ Blocker event created or updated: %s\n", blockerEvent.Summary)
 								fmt.Printf("      📅 Destination calendar: %s\n", otherCalendarID)
-								result, err := db.Exec(`INSERT OR REPLACE INTO blocker_events (event_id, calendar_id, account_name, origin_event_id)
-														VALUES (?, ?, ?, ?)`, res.Id, otherCalendarID, otherAccountName, event.Id)
+								result, err := db.Exec(`INSERT OR REPLACE INTO blocker_events (event_id, calendar_id, account_name, origin_event_id, last_updated)
+														VALUES (?, ?, ?, ?, ?)`, res.Id, otherCalendarID, otherAccountName, event.Id, event.Updated)
 								if err != nil {
 									log.Printf("Error inserting blocker event into database: %v\n", err)
 								} else {
