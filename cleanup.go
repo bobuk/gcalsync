@@ -28,7 +28,9 @@ func cleanupCalendars() {
 		}
 
 		for _, calendarID := range calendarIDs {
+			fmt.Printf("🧹 Cleaning up calendar: %s\n", calendarID)
 			cleanupCalendar(calendarService, calendarID)
+			db.Exec("DELETE FROM blocker_events WHERE calendar_id = ?", calendarID)
 		}
 	}
 
@@ -52,6 +54,7 @@ func cleanupCalendar(calendarService *calendar.Service, calendarID string) {
 		for _, event := range events.Items {
 			if strings.Contains(event.Summary, "O_o") {
 				err := calendarService.Events.Delete(calendarID, event.Id).Do()
+				fmt.Printf("Deleted event %s from calendar %s\n", event.Summary, calendarID)
 				if err != nil {
 					log.Fatalf("Error deleting blocker event: %v", err)
 				}
