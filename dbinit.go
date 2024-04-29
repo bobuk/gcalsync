@@ -77,7 +77,7 @@ func dbInit() {
 	}
 
 	if dbVersion == 2 {
-		_, err = db.Exec(`ALTER TABLE blocker_events ADD COLUMN origin_calendar_id, TEXT`)
+		_, err = db.Exec(`ALTER TABLE blocker_events ADD COLUMN origin_calendar_id TEXT`)
 		if err != nil {
 			log.Fatalf("Error adding origin_calendar_id column to blocker_events table: %v", err)
 		}
