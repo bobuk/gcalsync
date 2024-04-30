@@ -89,6 +89,10 @@ func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID stri
 
 		for _, event := range events.Items {
 			allEventsId[event.Id] = true
+			// Google marks "working locations" as events, but we don't want to sync them
+			if event.EventType == "workingLocation" {
+				continue
+			}
 			if !strings.Contains(event.Summary, "O_o") {
 				fmt.Printf("    ✨ Syncing event: %s\n", event.Summary)
 				for otherAccountName, calendarIDs := range calendars {
