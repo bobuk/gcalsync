@@ -20,8 +20,9 @@ import (
 )
 
 type Config struct {
-	ClientID     string `toml:"client_id"`
-	ClientSecret string `toml:"client_secret"`
+	ClientID         string `toml:"client_id"`
+	ClientSecret     string `toml:"client_secret"`
+	DisableReminders bool   `toml:"disable_reminders"`
 }
 
 var oauthConfig *oauth2.Config
