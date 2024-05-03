@@ -172,7 +172,7 @@ func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID stri
 	}
 
 	// Delete blocker events that not exists from this calendar in other calendars
-	fmt.Printf("    🗑 Deleting blocker events that not exists in calendar %s from other calendars\n", calendarID)
+	fmt.Printf("    🗑 Deleting blocker events that don't exist in calendar %s from other calendars\n", calendarID)
 	for otherAccountName, calendarIDs := range calendars {
 		for _, otherCalendarID := range calendarIDs {
 			if otherCalendarID != calendarID {
@@ -196,7 +196,7 @@ func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID stri
 
 						res, err := calendarService.Events.Get(calendarID, originEventID).Do()
 						if err != nil || res == nil || res.Status == "cancelled" {
-							fmt.Printf(" Event marked for deletion: %s\n", eventID)
+							fmt.Printf("      ❌ Event marked for deletion: %s\n", eventID)
 							eventsToDelete = append(eventsToDelete, eventID)
 						}
 					}
