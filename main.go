@@ -6,8 +6,6 @@ import (
 	"os"
 )
 
-var verbosityLevel int
-
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Println("Usage: gcalsync (add|sync|desync|list)")

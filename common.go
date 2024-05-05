@@ -20,11 +20,24 @@ import (
 )
 
 type Config struct {
-	ClientID         string `toml:"client_id"`
-	ClientSecret     string `toml:"client_secret"`
-	DisableReminders bool   `toml:"disable_reminders"`
-	VerbosityLevel   int    `toml:"verbosity_level"`
+	ClientID         string          `toml:"client_id"`
+	ClientSecret     string          `toml:"client_secret"`
+	DisableReminders bool            `toml:"disable_reminders"`
+	VerbosityLevel   verbosityLevels `toml:"verbosity_level"`
 }
+
+type verbosityLevels int
+
+const (
+	criticalOnly      verbosityLevels = iota // 0 - no output, other than creitical errors
+	calendarOnly                             // 1 - only list calendars being synced
+	eventsAddUpdate                          // 2 - list events being synced
+	blockCreateDelete                        // 3 - report on blocker events created/deleted
+	skipOnDelete                             // 4 - report on blocker events skipped
+	tellMeEverything                         // 5 - report everything
+)
+
+var verbosityLevel verbosityLevels
 
 var oauthConfig *oauth2.Config
 var configDir string
@@ -182,15 +195,9 @@ func tokenExpired(db *sql.DB, accountName string, calendarService *calendar.Serv
 	return calendarService
 }
 
-func printVerbosely(verbosity int, format string, a ...interface{}) {
+func printVerbosely(verbosity verbosityLevels, format string, a ...interface{}) {
 	// Print only if verbosity is higher than verbosityLevel
 	// verbosityLevel is set in the config file
-	// 0 - no output, other than creitical errors
-	// 1 - only list calendars being synced
-	// 2 - list events being synced
-	// 3 - report on blocker events created/deleted
-	// 4 - report on blocker events skipped
-	// 5 - report everything
 	if verbosity <= verbosityLevel {
 		fmt.Printf(format, a...)
 	}

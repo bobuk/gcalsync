@@ -31,7 +31,7 @@ func syncCalendars() {
 	ctx := context.Background()
 	fmt.Println("🚀 Starting calendar synchronization...")
 	for accountName, calendarIDs := range calendars {
-		printVerbosely(0, "📅 Syncing calendars for account: %s\n", accountName)
+		printVerbosely(criticalOnly, "📅 Syncing calendars for account: %s\n", accountName)
 		client := getClient(ctx, oauthConfig, db, accountName)
 		calendarService, err := calendar.NewService(ctx, option.WithHTTPClient(client))
 		if err != nil {
@@ -76,7 +76,7 @@ func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID stri
 	var allEventsId = map[string]bool{}
 
 	for {
-		printVerbosely(2, "    📥 Retrieving events for calendar: %s\n", calendarID)
+		printVerbosely(eventsAddUpdate, "    📥 Retrieving events for calendar: %s\n", calendarID)
 		events, err := calendarService.Events.List(calendarID).
 			PageToken(pageToken).
 			SingleEvents(true).
@@ -95,7 +95,7 @@ func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID stri
 				continue
 			}
 			if !strings.Contains(event.Summary, "O_o") {
-				printVerbosely(2, "    ✨ Syncing event: %s\n", event.Summary)
+				printVerbosely(eventsAddUpdate, "    ✨ Syncing event: %s\n", event.Summary)
 				for otherAccountName, calendarIDs := range calendars {
 					for _, otherCalendarID := range calendarIDs {
 						if otherCalendarID != calendarID {
@@ -146,15 +146,15 @@ func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID stri
 								res, err = otherCalendarService.Events.Insert(otherCalendarID, blockerEvent).Do()
 							}
 							if err == nil {
-								printVerbosely(3, "      ➕ Blocker event created or updated: %s\n", blockerEvent.Summary)
-								printVerbosely(2, "      📅 Destination calendar: %s\n", otherCalendarID)
+								printVerbosely(blockCreateDelete, "      ➕ Blocker event created or updated: %s\n", blockerEvent.Summary)
+								printVerbosely(eventsAddUpdate, "      📅 Destination calendar: %s\n", otherCalendarID)
 								result, err := db.Exec(`INSERT OR REPLACE INTO blocker_events (event_id, origin_calendar_id, calendar_id, account_name, origin_event_id, last_updated)
 														VALUES (?, ?, ?, ?, ?, ?)`, res.Id, calendarID, otherCalendarID, otherAccountName, event.Id, event.Updated)
 								if err != nil {
 									log.Printf("Error inserting blocker event into database: %v\n", err)
 								} else {
 									rowsAffected, _ := result.RowsAffected()
-									printVerbosely(3, "      📥 Blocker event inserted into database. Rows affected: %d\n", rowsAffected)
+									printVerbosely(blockCreateDelete, "      📥 Blocker event inserted into database. Rows affected: %d\n", rowsAffected)
 								}
 							}
 
@@ -173,7 +173,7 @@ func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID stri
 	}
 
 	// Delete blocker events that not exists from this calendar in other calendars
-	printVerbosely(3, "    🗑 Deleting blocker events that not exists in calendar %s from other calendars\n", calendarID)
+	printVerbosely(blockCreateDelete, "    🗑 Deleting blocker events that not exists in calendar %s from other calendars\n", calendarID)
 	for otherAccountName, calendarIDs := range calendars {
 		for _, otherCalendarID := range calendarIDs {
 			if otherCalendarID != calendarID {
@@ -204,7 +204,7 @@ func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID stri
 				}
 
 				for _, eventID := range eventsToDelete {
-					printVerbosely(4, "      🗑 Deleting blocker event: %s\n", eventID)
+					printVerbosely(skipOnDelete, "      🗑 Deleting blocker event: %s\n", eventID)
 					res, err := otherCalendarService.Events.Get(otherCalendarID, eventID).Do()
 
 					alreadyDeleted := false
@@ -212,7 +212,7 @@ func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID stri
 					if err != nil {
 						alreadyDeleted = strings.Contains(err.Error(), "410")
 						if !alreadyDeleted {
-							log.Fatalf("Error retrieving blocker event: %v", err)
+							printVerbosely(criticalOnly, "Error retrieving blocker event: %v", err)
 						}
 					}
 
@@ -227,7 +227,7 @@ func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID stri
 						log.Fatalf("Error deleting blocker event from database: %v", err)
 					}
 
-					printVerbosely(4, "      ✅ Blocker event deleted: %s\n", res.Summary)
+					printVerbosely(4, "    ❗️ ✅ Blocker event deleted: %s\n", res.Summary)
 				}
 			}
 		}
