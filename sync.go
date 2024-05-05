@@ -197,7 +197,7 @@ func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID stri
 
 						res, err := calendarService.Events.Get(calendarID, originEventID).Do()
 						if err != nil || res == nil || res.Status == "cancelled" {
-							printVerbosely(4, "     x Event marked for deletion: %s\n", eventID)
+							printVerbosely(blockCreateDelete, "     x Event marked for deletion: %s\n", eventID)
 							eventsToDelete = append(eventsToDelete, eventID)
 						}
 					}
@@ -227,7 +227,7 @@ func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID stri
 						log.Fatalf("Error deleting blocker event from database: %v", err)
 					}
 
-					printVerbosely(4, "    ❗️ ✅ Blocker event deleted: %s\n", res.Summary)
+					printVerbosely(skipOnDelete, "    ❗️ ✅ Blocker event deleted: %s\n", res.Summary)
 				}
 			}
 		}
