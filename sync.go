@@ -251,7 +251,11 @@ func syncCalendar(db *sql.DB, calendarID string, calendars map[string][]string, 
 					if !alreadyDeleted {
 						err = otherCalendarService.Events.Delete(otherCalendarID, eventID).Do()
 						if err != nil {
-							return fmt.Errorf("error deleting blocker event: %v", err)
+							if res.Status != "cancelled" {
+								return fmt.Errorf("error deleting blocker event: %v", err)
+							} else {
+								fmt.Printf("     ❗️ Event already deleted in the other calendar: %s\n", eventID)
+							}
 						}
 					}
 					_, err = db.Exec("DELETE FROM blocker_events WHERE event_id = ?", eventID)
