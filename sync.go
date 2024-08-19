@@ -18,7 +18,7 @@ func syncCalendars() {
 	if err != nil {
 		log.Fatalf("Error reading config file: %v", err)
 	}
-	useReminders := config.DisableReminders
+	useReminders := !config.DisableReminders
 
 	db, err := openDB(".gcalsync.db")
 	if err != nil {
@@ -28,20 +28,17 @@ func syncCalendars() {
 
 	calendars := getCalendarsFromDB(db)
 
-	ctx := context.Background()
 	fmt.Println("🚀 Starting calendar synchronization...")
 	for accountName, calendarIDs := range calendars {
 		fmt.Printf("📅 Syncing calendars for account: %s\n", accountName)
-		client := getClient(ctx, oauthConfig, db, accountName)
-		calendarService, err := calendar.NewService(ctx, option.WithHTTPClient(client))
-		if err != nil {
-			log.Fatalf("Error creating calendar client: %v", err)
-		}
-
 		for _, calendarID := range calendarIDs {
 			fmt.Printf("  ↪️ Syncing calendar: %s\n", calendarID)
-			syncCalendar(db, calendarService, calendarID, calendars, accountName, useReminders)
+			err := syncCalendar(db, calendarID, calendars, accountName, useReminders)
+			if err != nil {
+				log.Printf("Error syncing calendar %s for account %s: %v\n", calendarID, accountName, err)
+			}
 		}
+
 		fmt.Println("✅ Calendar synchronization completed successfully!")
 	}
 
@@ -62,11 +59,40 @@ func getCalendarsFromDB(db *sql.DB) map[string][]string {
 	return calendars
 }
 
-func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID string, calendars map[string][]string, accountName string, useReminders bool) {
+func syncCalendar(db *sql.DB, calendarID string, calendars map[string][]string, accountName string, useReminders bool) error {
 	ctx := context.Background()
-	calendarService = tokenExpired(db, accountName, calendarService, ctx)
-	pageToken := ""
+	var calendarService *calendar.Service
 
+	// Handle token expiry/re-authentication
+	for retries := 0; retries < 3; retries++ {
+		log.Printf("Attempt %d to get client for account %s\n", retries+1, accountName)
+		client, err := getClient(ctx, oauthConfig, db, accountName)
+		if err != nil {
+			if strings.Contains(err.Error(), "invalid token") || strings.Contains(err.Error(), "no token found") {
+				fmt.Printf("❗️ Authentication error for account %s. Attempting to re-authenticate.\n", accountName)
+				err = reAuthenticateAccount(db, accountName)
+				if err != nil {
+					fmt.Printf("Failed to re-authenticate account %s: %v\n", accountName, err)
+					continue
+				}
+			} else {
+				log.Printf("1. Error getting client: %v\n", err)
+				return fmt.Errorf("error getting client: %v", err)
+			}
+		} else {
+			calendarService, err = calendar.NewService(ctx, option.WithHTTPClient(client))
+			if err == nil {
+				break
+			}
+			return fmt.Errorf("error creating calendar service: %v", err)
+		}
+	}
+
+	if calendarService == nil {
+		return fmt.Errorf("failed to create calendar service after retries")
+	}
+
+	pageToken := ""
 	now := time.Now()
 	startOfCurrentMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 	endOfNextMonth := startOfCurrentMonth.AddDate(0, 2, -1)
@@ -85,7 +111,7 @@ func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID stri
 			OrderBy("startTime").
 			Do()
 		if err != nil {
-			log.Fatalf("Error retrieving events: %v", err)
+			return fmt.Errorf("error retrieving events: %v", err)
 		}
 
 		for _, event := range events.Items {
@@ -108,10 +134,13 @@ func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID stri
 								continue
 							}
 
-							client := getClient(ctx, oauthConfig, db, otherAccountName)
+							client, err := getClient(ctx, oauthConfig, db, otherAccountName)
+							if err != nil {
+								return fmt.Errorf("error getting client: %v", err)
+							}
 							otherCalendarService, err := calendar.NewService(ctx, option.WithHTTPClient(client))
 							if err != nil {
-								log.Fatalf("Error creating calendar client: %v", err)
+								return fmt.Errorf("error getting calendar service: %v", err)
 							}
 
 							blockerSummary := fmt.Sprintf("O_o %s", event.Summary)
@@ -158,7 +187,7 @@ func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID stri
 							}
 
 							if err != nil {
-								log.Fatalf("Error creating blocker event: %v", err)
+								return fmt.Errorf("error creating or updating blocker event: %v", err)
 							}
 						}
 					}
@@ -176,11 +205,15 @@ func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID stri
 	for otherAccountName, calendarIDs := range calendars {
 		for _, otherCalendarID := range calendarIDs {
 			if otherCalendarID != calendarID {
-				client := getClient(ctx, oauthConfig, db, otherAccountName)
+				client, err := getClient(ctx, oauthConfig, db, otherAccountName)
+				if err != nil {
+					log.Printf("3. Error getting client: %v\n", err)
+					return fmt.Errorf("error getting client for account %s: %v", otherAccountName, err)
+				}
 				otherCalendarService, err := calendar.NewService(ctx, option.WithHTTPClient(client))
 				rows, err := db.Query("SELECT event_id, origin_event_id FROM blocker_events WHERE calendar_id = ? AND origin_calendar_id = ?", otherCalendarID, calendarID)
 				if err != nil {
-					log.Fatalf("Error retrieving blocker events: %v", err)
+					return fmt.Errorf("error creating calendar service for account %s: %v", otherAccountName, err)
 				}
 				eventsToDelete := make([]string, 0)
 
@@ -189,7 +222,7 @@ func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID stri
 					var eventID string
 					var originEventID string
 					if err := rows.Scan(&eventID, &originEventID); err != nil {
-						log.Fatalf("Error scanning blocker event row: %v", err)
+						return fmt.Errorf("error scanning blocker event row: %v", err)
 					}
 
 					if val := allEventsId[originEventID]; !val {
@@ -211,19 +244,19 @@ func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID stri
 					if err != nil {
 						alreadyDeleted = strings.Contains(err.Error(), "410")
 						if !alreadyDeleted {
-							log.Fatalf("Error retrieving blocker event: %v", err)
+							return fmt.Errorf("error retrieving blocker event: %v", err)
 						}
 					}
 
 					if !alreadyDeleted {
 						err = otherCalendarService.Events.Delete(otherCalendarID, eventID).Do()
 						if err != nil {
-							log.Fatalf("Error deleting blocker event: %v", err)
+							return fmt.Errorf("error deleting blocker event: %v", err)
 						}
 					}
 					_, err = db.Exec("DELETE FROM blocker_events WHERE event_id = ?", eventID)
 					if err != nil {
-						log.Fatalf("Error deleting blocker event from database: %v", err)
+						return fmt.Errorf("error deleting blocker event from database: %v", err)
 					}
 
 					fmt.Printf("      ✅ Blocker event deleted: %s\n", res.Summary)
@@ -231,4 +264,6 @@ func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID stri
 			}
 		}
 	}
+
+	return nil
 }

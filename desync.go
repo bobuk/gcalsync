@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"log"
 
-	"google.golang.org/api/calendar/v3"
 	"google.golang.org/api/googleapi"
-	"google.golang.org/api/option"
 )
 
 func desyncCalendars() {
@@ -43,8 +41,7 @@ func desyncCalendars() {
 			CalendarID string
 		}{EventID: eventID, CalendarID: calendarID})
 
-		client := getClient(ctx, oauthConfig, db, accountName)
-		calendarService, err := calendar.NewService(ctx, option.WithHTTPClient(client))
+		calendarService, err := getCalendarService(ctx, db, accountName)
 		if err != nil {
 			log.Fatalf("❌ Error creating calendar client: %v", err)
 		}
