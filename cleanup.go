@@ -21,7 +21,8 @@ func cleanupCalendars() {
 	ctx := context.Background()
 
 	for accountName, calendarIDs := range calendars {
-		calendarService, err := getCalendarService(ctx, db, accountName)
+		client := getClient(ctx, oauthConfig, db, accountName)
+		calendarService, err := calendar.New(client)
 		if err != nil {
 			log.Fatalf("Error creating calendar client: %v", err)
 		}

@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -22,13 +23,6 @@ type Config struct {
 	ClientID         string `toml:"client_id"`
 	ClientSecret     string `toml:"client_secret"`
 	DisableReminders bool   `toml:"disable_reminders"`
-}
-
-type Token struct {
-	AccessToken  string    `json:"access_token"`
-	TokenType    string    `json:"token_type"`
-	RefreshToken string    `json:"refresh_token"`
-	Expiry       time.Time `json:"expiry"`
 }
 
 var oauthConfig *oauth2.Config
@@ -77,8 +71,8 @@ func openDB(filename string) (*sql.DB, error) {
 }
 
 func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
-	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline, oauth2.ApprovalForce)
-	fmt.Printf("Go to the following link in your browser then type or paste the "+
+	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
+	fmt.Printf("Go to the following link in your browser then type the "+
 		"authorization code: \n%v\n", authURL)
 
 	var authCode string
@@ -103,14 +97,17 @@ func saveToken(db *sql.DB, accountName string, token *oauth2.Token) error {
 	return err
 }
 
-func getClient(ctx context.Context, config *oauth2.Config, db *sql.DB, accountName string) (*http.Client, error) {
+func getClient(ctx context.Context, config *oauth2.Config, db *sql.DB, accountName string) *http.Client {
 	var tokenJSON []byte
 	err := db.QueryRow("SELECT token FROM tokens WHERE account_name = ?", accountName).Scan(&tokenJSON)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("no token found for account %s", accountName)
+			fmt.Printf("  ❗️ No token found for account %s. Obtaining a new token.\n", accountName)
+			token := getTokenFromWeb(config)
+			saveToken(db, accountName, token)
+			return config.Client(ctx, token)
 		}
-		return nil, fmt.Errorf("error retrieving token from database: %v", err)
+		log.Fatalf("Error retrieving token from database: %v", err)
 	}
 
 	var token oauth2.Token
@@ -120,35 +117,15 @@ func getClient(ctx context.Context, config *oauth2.Config, db *sql.DB, accountNa
 	}
 
 	tokenSource := config.TokenSource(ctx, &token)
-	client := oauth2.NewClient(ctx, tokenSource)
-
-	// Test the token
-	testURL := "https://www.googleapis.com/oauth2/v3/tokeninfo"
-	resp, err := client.Get(testURL)
-	if err != nil || resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("invalid token for account %s", accountName)
-	}
-
-	return client, nil
-}
-
-func refreshToken(ctx context.Context, db *sql.DB, accountName string) (*oauth2.Token, error) {
-	var tokenJSON []byte
-	err := db.QueryRow("SELECT token FROM tokens WHERE account_name = ?", accountName).Scan(&tokenJSON)
-	if err != nil {
-		return nil, fmt.Errorf("error retrieving token from database: %v", err)
-	}
-
-	var token oauth2.Token
-	err = json.Unmarshal(tokenJSON, &token)
-	if err != nil {
-		return nil, fmt.Errorf("error unmarshaling token: %v", err)
-	}
-
-	tokenSource := oauthConfig.TokenSource(ctx, &token)
 	newToken, err := tokenSource.Token()
 	if err != nil {
-		return nil, fmt.Errorf("error refreshing token: %v", err)
+		if strings.Contains(err.Error(), "Token has been expired or revoked") {
+			fmt.Printf("  ❗️ Token expired or revoked for account %s. Obtaining a new token.\n", accountName)
+			newToken = getTokenFromWeb(config)
+			saveToken(db, accountName, newToken)
+			return config.Client(ctx, newToken)
+		}
+		log.Fatalf("Error retrieving token from token source: %v", err)
 	}
 
 	if newToken.AccessToken != token.AccessToken {
@@ -156,23 +133,48 @@ func refreshToken(ctx context.Context, db *sql.DB, accountName string) (*oauth2.
 		saveToken(db, accountName, newToken)
 	}
 
-	return newToken, nil
+	// Check if the token is expired and refresh it if necessary
+	if token.Expiry.Before(time.Now()) {
+		fmt.Printf("  ❗️ Token expired for account %s. Refreshing token.\n", accountName)
+		newToken, err := config.TokenSource(ctx, &token).Token()
+		if err != nil {
+			log.Fatalf("Error refreshing token: %v", err)
+		}
+		saveToken(db, accountName, newToken)
+		return config.Client(ctx, newToken)
+	}
+
+	return config.Client(ctx, &token)
 }
 
-func getCalendarService(ctx context.Context, db *sql.DB, accountName string) (*calendar.Service, error) {
-	client, err := getClient(ctx, oauthConfig, db, accountName)
+// Check if the token has expired and refresh if necessary, return updated calendarService
+func tokenExpired(db *sql.DB, accountName string, calendarService *calendar.Service, ctx context.Context) *calendar.Service {
+	var tokenJSON []byte
+	err := db.QueryRow("SELECT token FROM tokens WHERE account_name = ?", accountName).Scan(&tokenJSON)
 	if err != nil {
-		return nil, fmt.Errorf("unable to get client: %v", err)
+		log.Fatalf("Error retrieving token from database: %v", err)
 	}
-	service, err := calendar.NewService(ctx, option.WithHTTPClient(client))
-	if err != nil {
-		return nil, fmt.Errorf("unable to create calendar service: %v", err)
-	}
-	return service, nil
-}
 
-func reAuthenticateAccount(db *sql.DB, accountName string) error {
-	fmt.Printf("Please re-authenticate account %s\n", accountName)
-	token := getTokenFromWeb(oauthConfig)
-	return saveToken(db, accountName, token)
+	var token oauth2.Token
+	err = json.Unmarshal(tokenJSON, &token)
+	if err != nil {
+		log.Fatalf("Error unmarshaling token: %v", err)
+	}
+
+	if token.Expiry.Before(time.Now()) {
+		fmt.Printf("  ❗️ Token expired for account %s. Refreshing token.\n", accountName)
+		newToken, err := oauthConfig.TokenSource(ctx, &token).Token()
+		if err != nil {
+			log.Fatalf("Error refreshing token: %v", err)
+		}
+		saveToken(db, accountName, newToken)
+
+		// Create new calendar service with updated token
+		calendarService, err = calendar.NewService(ctx, option.WithHTTPClient(oauthConfig.Client(ctx, newToken)))
+		if err != nil {
+			log.Fatalf("Unable to create new calendar service: %v", err)
+		}
+	}
+
+	return calendarService
 }
