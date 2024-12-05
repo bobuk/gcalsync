@@ -19,6 +19,7 @@ func syncCalendars() {
 		log.Fatalf("Error reading config file: %v", err)
 	}
 	useReminders := config.DisableReminders
+	eventVisibility := config.EventVisibility
 
 	db, err := openDB(".gcalsync.db")
 	if err != nil {
@@ -40,7 +41,7 @@ func syncCalendars() {
 
 		for _, calendarID := range calendarIDs {
 			fmt.Printf("  ↪️ Syncing calendar: %s\n", calendarID)
-			syncCalendar(db, calendarService, calendarID, calendars, accountName, useReminders)
+			syncCalendar(db, calendarService, calendarID, calendars, accountName, useReminders, eventVisibility)
 		}
 		fmt.Println("✅ Calendar synchronization completed successfully!")
 	}
@@ -62,7 +63,7 @@ func getCalendarsFromDB(db *sql.DB) map[string][]string {
 	return calendars
 }
 
-func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID string, calendars map[string][]string, accountName string, useReminders bool) {
+func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID string, calendars map[string][]string, accountName string, useReminders bool, eventVisibility string) {
 	ctx := context.Background()
 	calendarService = tokenExpired(db, accountName, calendarService, ctx)
 	pageToken := ""
@@ -135,6 +136,10 @@ func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID stri
 							}
 							if !useReminders {
 								blockerEvent.Reminders = nil
+							}
+
+							if eventVisibility != "" {
+								blockerEvent.Visibility = eventVisibility
 							}
 
 							var res *calendar.Event
