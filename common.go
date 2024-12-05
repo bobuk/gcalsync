@@ -23,6 +23,7 @@ type Config struct {
 	ClientID         string `toml:"client_id"`
 	ClientSecret     string `toml:"client_secret"`
 	DisableReminders bool   `toml:"disable_reminders"`
+	EventVisibility  string `toml:"block_event_visibility"`
 }
 
 var oauthConfig *oauth2.Config
