@@ -88,4 +88,17 @@ func dbInit() {
 			log.Fatalf("Error updating db_version table: %v", err)
 		}
 	}
+
+	if dbVersion == 3 {
+		_, err = db.Exec(`ALTER TABLE blocker_events ADD COLUMN response_status TEXT DEFAULT 'tentative'`)
+		if err != nil {
+			log.Fatalf("Error adding response_status column to blocker_events table: %v", err)
+		}
+
+		dbVersion = 4
+		_, err = db.Exec(`UPDATE db_version SET version = 4 WHERE name = 'gcalsync'`)
+		if err != nil {
+			log.Fatalf("Error updating db_version table: %v", err)
+		}
+	}
 }
