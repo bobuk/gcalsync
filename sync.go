@@ -103,8 +103,22 @@ func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID stri
 							var existingBlockerEventID string
 							var last_updated string
 							var originCalendarID string
-							err := db.QueryRow("SELECT event_id, last_updated, origin_calendar_id FROM blocker_events WHERE calendar_id = ? AND origin_event_id = ?", otherCalendarID, event.Id).Scan(&existingBlockerEventID, &last_updated, &originCalendarID)
-							if err == nil && last_updated == event.Updated && originCalendarID == calendarID {
+							var responseStatus string
+							err := db.QueryRow("SELECT event_id, last_updated, origin_calendar_id, response_status FROM blocker_events WHERE calendar_id = ? AND origin_event_id = ?", otherCalendarID, event.Id).Scan(&existingBlockerEventID, &last_updated, &originCalendarID, &responseStatus)
+
+							// Get original event's response status for the calendar owner
+							originalResponseStatus := "accepted" // default
+							if event.Attendees != nil {
+								for _, attendee := range event.Attendees {
+									if attendee.Email == calendarID {
+										originalResponseStatus = attendee.ResponseStatus
+										break
+									}
+								}
+							}
+
+							// Only skip if event exists, is up to date, and response status hasn't changed
+							if err == nil && last_updated == event.Updated && originCalendarID == calendarID && responseStatus == originalResponseStatus {
 								fmt.Printf("      ⚠️ Blocker event already exists for origin event ID %s in calendar %s and up to date\n", event.Id, otherCalendarID)
 								continue
 							}
@@ -131,7 +145,10 @@ func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID stri
 								Start:       event.Start,
 								End:         event.End,
 								Attendees: []*calendar.EventAttendee{
-									{Email: otherCalendarID},
+									{
+										Email:          otherCalendarID,
+										ResponseStatus: originalResponseStatus,
+									},
 								},
 							}
 							if !useReminders {
@@ -150,15 +167,17 @@ func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID stri
 								res, err = otherCalendarService.Events.Insert(otherCalendarID, blockerEvent).Do()
 							}
 							if err == nil {
-								fmt.Printf("      ➕ Blocker event created or updated: %s\n", blockerEvent.Summary)
+								fmt.Printf("      ➕ Blocker event created or updated: %s (Response: %s)\n", blockerEvent.Summary, originalResponseStatus)
 								fmt.Printf("      📅 Destination calendar: %s\n", otherCalendarID)
-								result, err := db.Exec(`INSERT OR REPLACE INTO blocker_events (event_id, origin_calendar_id, calendar_id, account_name, origin_event_id, last_updated)
-														VALUES (?, ?, ?, ?, ?, ?)`, res.Id, calendarID, otherCalendarID, otherAccountName, event.Id, event.Updated)
+								result, err := db.Exec(`INSERT OR REPLACE INTO blocker_events 
+									(event_id, origin_calendar_id, calendar_id, account_name, origin_event_id, last_updated, response_status)
+									VALUES (?, ?, ?, ?, ?, ?, ?)`, 
+									res.Id, calendarID, otherCalendarID, otherAccountName, event.Id, event.Updated, originalResponseStatus)
 								if err != nil {
 									log.Printf("Error inserting blocker event into database: %v\n", err)
 								} else {
-									rowsAffected, _ := result.RowsAffected()
-									fmt.Printf("      📥 Blocker event inserted into database. Rows affected: %d\n", rowsAffected)
+										rowsAffected, _ := result.RowsAffected()
+										fmt.Printf("      📥 Blocker event inserted into database. Rows affected: %d\n", rowsAffected)
 								}
 							}
 

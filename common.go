@@ -120,7 +120,7 @@ func getClient(ctx context.Context, config *oauth2.Config, db *sql.DB, accountNa
 	tokenSource := config.TokenSource(ctx, &token)
 	newToken, err := tokenSource.Token()
 	if err != nil {
-		if strings.Contains(err.Error(), "Token has been expired or revoked") {
+		if strings.Contains(err.Error(), "Token has been expired or revoked") || strings.Contains(err.Error(), "invalid_grant") {
 			fmt.Printf("  ❗️ Token expired or revoked for account %s. Obtaining a new token.\n", accountName)
 			newToken = getTokenFromWeb(config)
 			saveToken(db, accountName, newToken)
