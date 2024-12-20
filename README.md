@@ -43,11 +43,13 @@ Say goodbye to calendar conflicts and hello to seamless synchronization. 🎉
 4. Create a `.gcalsync.toml` file in the project directory with your OAuth2 credentials:
 
     ```toml
-    client_id = "your-client-id"
-    client_secret = "your-client-secret"
+    client_id = "your-client-id"           # Your OAuth2 client ID
+    client_secret = "your-client-secret"   # Your OAuth2 client secret
+    disable_reminders = false              # Disable reminders for blocker events
+    block_event_visibility = "private"     # Visibility of blocker events (private, public, or default)
     ```
 
-    Don't forget to choose the appropriate OAuth2 consent screen settings and add the necessary scopes for the Google Calendar API, also double check that you are select "Desktop app" as application type.
+    Don't forget to choose the appropriate OAuth2 consent screen settings and [add the necessary scopes](https://developers.google.com/identity/oauth2/web/guides/get-google-api-clientid) for the Google Calendar API, also double check that you are select "Desktop app" as application type.
 
     You can move the file to `~/.config/gcalsync/.gcalsync.toml` to avoid storing sensitive data in the project directory. In this case your database file will be created in `~/.config/gcalsync/` as well.
 
@@ -96,6 +98,10 @@ To list all calendars that have been added to the local database, run the `gcals
 ### 🎗️ Disabling Reminders
 
 By default blocker events will inherit your default Google Calendar reminder/alert settings (typically – 10 minutes before the event). If you *do not want* to receive reminders for the blocker events, you can disable them by setting the `disable_reminders` field to `true` in the `.gcalsync.toml` configuration file.
+
+### 🕶️ Setting Block Event Visibility
+
+By default blocker events will be created with the visibility set to "private". If you want to change the visibility of blocker events, you can set the `block_event_visibility` field to "public" or "default" in the `.gcalsync.toml` configuration file.
 
 ## 🤝 Contributing
 
