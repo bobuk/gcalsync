@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"log"
 
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
 	"google.golang.org/api/calendar/v3"
 	"google.golang.org/api/option"
 )
@@ -16,6 +14,9 @@ func addCalendar() {
 	if err != nil {
 		log.Fatalf("Error reading config file: %v", err)
 	}
+
+	// Initialize the global oauthConfig
+	initOAuthConfig(config)
 
 	db, err := openDB(".gcalsync.db")
 	if err != nil {
@@ -33,15 +34,8 @@ func addCalendar() {
 	fmt.Scanln(&calendarID)
 
 	ctx := context.Background()
-	oauthConfig := &oauth2.Config{
-		ClientID:     config.ClientID,
-		ClientSecret: config.ClientSecret,
-		Endpoint:     google.Endpoint,
-		RedirectURL:  "urn:ietf:wg:oauth:2.0:oob",
-		Scopes:       []string{calendar.CalendarScope},
-	}
 
-	client := getClient(ctx, oauthConfig, db, accountName)
+	client := getClient(ctx, oauthConfig, db, accountName, config)
 
 	calendarService, err := calendar.NewService(ctx, option.WithHTTPClient(client))
 	if err != nil {

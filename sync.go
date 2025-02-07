@@ -33,7 +33,7 @@ func syncCalendars() {
 	fmt.Println("🚀 Starting calendar synchronization...")
 	for accountName, calendarIDs := range calendars {
 		fmt.Printf("📅 Syncing calendars for account: %s\n", accountName)
-		client := getClient(ctx, oauthConfig, db, accountName)
+		client := getClient(ctx, oauthConfig, db, accountName, config)
 		calendarService, err := calendar.NewService(ctx, option.WithHTTPClient(client))
 		if err != nil {
 			log.Fatalf("Error creating calendar client: %v", err)
@@ -64,6 +64,11 @@ func getCalendarsFromDB(db *sql.DB) map[string][]string {
 }
 
 func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID string, calendars map[string][]string, accountName string, useReminders bool, eventVisibility string) {
+	config, err := readConfig(".gcalsync.toml")
+	if err != nil {
+		log.Fatalf("Error reading config file: %v", err)
+	}
+
 	ctx := context.Background()
 	calendarService = tokenExpired(db, accountName, calendarService, ctx)
 	pageToken := ""
@@ -123,7 +128,7 @@ func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID stri
 								continue
 							}
 
-							client := getClient(ctx, oauthConfig, db, otherAccountName)
+							client := getClient(ctx, oauthConfig, db, otherAccountName, config)
 							otherCalendarService, err := calendar.NewService(ctx, option.WithHTTPClient(client))
 							if err != nil {
 								log.Fatalf("Error creating calendar client: %v", err)
@@ -169,15 +174,15 @@ func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID stri
 							if err == nil {
 								fmt.Printf("      ➕ Blocker event created or updated: %s (Response: %s)\n", blockerEvent.Summary, originalResponseStatus)
 								fmt.Printf("      📅 Destination calendar: %s\n", otherCalendarID)
-								result, err := db.Exec(`INSERT OR REPLACE INTO blocker_events 
+								result, err := db.Exec(`INSERT OR REPLACE INTO blocker_events
 									(event_id, origin_calendar_id, calendar_id, account_name, origin_event_id, last_updated, response_status)
-									VALUES (?, ?, ?, ?, ?, ?, ?)`, 
+									VALUES (?, ?, ?, ?, ?, ?, ?)`,
 									res.Id, calendarID, otherCalendarID, otherAccountName, event.Id, event.Updated, originalResponseStatus)
 								if err != nil {
 									log.Printf("Error inserting blocker event into database: %v\n", err)
 								} else {
-										rowsAffected, _ := result.RowsAffected()
-										fmt.Printf("      📥 Blocker event inserted into database. Rows affected: %d\n", rowsAffected)
+									rowsAffected, _ := result.RowsAffected()
+									fmt.Printf("      📥 Blocker event inserted into database. Rows affected: %d\n", rowsAffected)
 								}
 							}
 
@@ -200,7 +205,7 @@ func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID stri
 	for otherAccountName, calendarIDs := range calendars {
 		for _, otherCalendarID := range calendarIDs {
 			if otherCalendarID != calendarID {
-				client := getClient(ctx, oauthConfig, db, otherAccountName)
+				client := getClient(ctx, oauthConfig, db, otherAccountName, config)
 				otherCalendarService, err := calendar.NewService(ctx, option.WithHTTPClient(client))
 				rows, err := db.Query("SELECT event_id, origin_event_id FROM blocker_events WHERE calendar_id = ? AND origin_calendar_id = ?", otherCalendarID, calendarID)
 				if err != nil {

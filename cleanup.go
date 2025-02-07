@@ -10,6 +10,11 @@ import (
 )
 
 func cleanupCalendars() {
+	config, err := readConfig(".gcalsync.toml")
+	if err != nil {
+		log.Fatalf("Error reading config file: %v", err)
+	}
+
 	db, err := openDB(".gcalsync.db")
 	if err != nil {
 		log.Fatalf("Error opening database: %v", err)
@@ -21,7 +26,7 @@ func cleanupCalendars() {
 	ctx := context.Background()
 
 	for accountName, calendarIDs := range calendars {
-		client := getClient(ctx, oauthConfig, db, accountName)
+		client := getClient(ctx, oauthConfig, db, accountName, config)
 		calendarService, err := calendar.New(client)
 		if err != nil {
 			log.Fatalf("Error creating calendar client: %v", err)

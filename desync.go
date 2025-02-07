@@ -12,6 +12,11 @@ import (
 )
 
 func desyncCalendars() {
+	config, err := readConfig(".gcalsync.toml")
+	if err != nil {
+		log.Fatalf("Error reading config file: %v", err)
+	}
+
 	ctx := context.Background()
 	db, err := openDB(".gcalsync.db")
 	if err != nil {
@@ -43,7 +48,7 @@ func desyncCalendars() {
 			CalendarID string
 		}{EventID: eventID, CalendarID: calendarID})
 
-		client := getClient(ctx, oauthConfig, db, accountName)
+		client := getClient(ctx, oauthConfig, db, accountName, config)
 		calendarService, err := calendar.NewService(ctx, option.WithHTTPClient(client))
 		if err != nil {
 			log.Fatalf("❌ Error creating calendar client: %v", err)
