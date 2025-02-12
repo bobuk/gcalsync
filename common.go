@@ -6,8 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
+	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 
@@ -24,6 +27,7 @@ type Config struct {
 	ClientSecret     string `toml:"client_secret"`
 	DisableReminders bool   `toml:"disable_reminders"`
 	EventVisibility  string `toml:"block_event_visibility"`
+	AuthorizedPorts  []int  `toml:"authorized_ports"`
 }
 
 var oauthConfig *oauth2.Config
@@ -34,8 +38,8 @@ func initOAuthConfig(config *Config) {
 		ClientID:     config.ClientID,
 		ClientSecret: config.ClientSecret,
 		Endpoint:     google.Endpoint,
-		RedirectURL:  "urn:ietf:wg:oauth:2.0:oob",
 		Scopes:       []string{calendar.CalendarScope},
+		// RedirectURL will be set dynamically in getTokenFromWeb
 	}
 }
 
@@ -71,19 +75,56 @@ func openDB(filename string) (*sql.DB, error) {
 	return db, nil
 }
 
-func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
-	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
-	fmt.Printf("Go to the following link in your browser then type the "+
-		"authorization code: \n%v\n", authURL)
+func getTokenFromWeb(config *oauth2.Config, cfg *Config) *oauth2.Token {
+	// Start local server
+	listener, err := findAvailablePort(cfg.AuthorizedPorts)
+	if err != nil {
+		log.Fatalf("Unable to start listener: %v", err)
+	}
+	defer listener.Close()
 
-	var authCode string
-	if _, err := fmt.Scan(&authCode); err != nil {
-		log.Fatalf("Unable to read authorization code: %v", err)
+	port := listener.Addr().(*net.TCPAddr).Port
+	config.RedirectURL = fmt.Sprintf("http://localhost:%d", port)
+
+	codeChan := make(chan string)
+
+	var server *http.Server
+	server = &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			code := r.URL.Query().Get("code")
+			codeChan <- code
+			fmt.Fprintf(w, "Authorization successful! You can close this window.")
+			go func() {
+				time.Sleep(time.Second)
+				server.Shutdown(context.Background())
+			}()
+		}),
 	}
 
-	tok, err := config.Exchange(context.TODO(), authCode)
+	go server.Serve(listener)
+
+	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
+	fmt.Printf("Please visit this URL to authorize the application: \n%v\n", authURL)
+
+	// Open browser automatically
+	// err = openBrowser(authURL)
+	// if err != nil {
+	// 	fmt.Printf("Failed to open browser automatically: %v\n", err)
+	// 	fmt.Println("Please open the URL manually in your browser.")
+	// }
+
+	// Copy URL to clipboard
+	err = copyUrlToClipboard(authURL)
 	if err != nil {
-		log.Fatalf("Unable to retrieve token from web: %v", err)
+		fmt.Printf("Failed to copy URL to clipboard: %v\n", err)
+		fmt.Println("Please copy the URL manually and open it in your browser.")
+	}
+
+	code := <-codeChan
+
+	tok, err := config.Exchange(context.TODO(), code)
+	if err != nil {
+		log.Fatalf("Unable to retrieve token: %v", err)
 	}
 	return tok
 }
@@ -98,13 +139,13 @@ func saveToken(db *sql.DB, accountName string, token *oauth2.Token) error {
 	return err
 }
 
-func getClient(ctx context.Context, config *oauth2.Config, db *sql.DB, accountName string) *http.Client {
+func getClient(ctx context.Context, config *oauth2.Config, db *sql.DB, accountName string, cfg *Config) *http.Client {
 	var tokenJSON []byte
 	err := db.QueryRow("SELECT token FROM tokens WHERE account_name = ?", accountName).Scan(&tokenJSON)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			fmt.Printf("  ❗️ No token found for account %s. Obtaining a new token.\n", accountName)
-			token := getTokenFromWeb(config)
+			token := getTokenFromWeb(config, cfg)
 			saveToken(db, accountName, token)
 			return config.Client(ctx, token)
 		}
@@ -122,7 +163,7 @@ func getClient(ctx context.Context, config *oauth2.Config, db *sql.DB, accountNa
 	if err != nil {
 		if strings.Contains(err.Error(), "Token has been expired or revoked") || strings.Contains(err.Error(), "invalid_grant") {
 			fmt.Printf("  ❗️ Token expired or revoked for account %s. Obtaining a new token.\n", accountName)
-			newToken = getTokenFromWeb(config)
+			newToken = getTokenFromWeb(config, cfg)
 			saveToken(db, accountName, newToken)
 			return config.Client(ctx, newToken)
 		}
@@ -178,4 +219,53 @@ func tokenExpired(db *sql.DB, accountName string, calendarService *calendar.Serv
 	}
 
 	return calendarService
+}
+
+// Helper function to find an available port in a range
+func findAvailablePort(authorizedPorts []int) (net.Listener, error) {
+	for _, port := range authorizedPorts {
+		listener, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", port))
+		if err == nil {
+			return listener, nil
+		}
+	}
+	return nil, fmt.Errorf("no available ports in range %v", authorizedPorts)
+}
+
+// Open a URL in the default browser
+func openBrowser(url string) error {
+	var cmd string
+	var args []string
+
+	switch runtime.GOOS {
+	case "windows":
+		cmd = "cmd"
+		args = []string{"/c", "start"}
+	case "darwin":
+		cmd = "open"
+	default: // "linux", "freebsd", "openbsd", "netbsd"
+		cmd = "xdg-open"
+	}
+	args = append(args, url)
+	return exec.Command(cmd, args...).Start()
+}
+
+// Copy a URL into a clipboard automatically
+func copyUrlToClipboard(url string) error {
+	var cmd string
+	var args []string
+
+	switch runtime.GOOS {
+	case "windows":
+		cmd = "cmd"
+		args = []string{"/c", "echo", url, "|", "clip"}
+	case "darwin":
+		cmd = "pbcopy"
+		args = []string{url}
+	default: // "linux", "freebsd", "openbsd", "netbsd"
+		cmd = "xclip"
+		args = []string{"-selection", "clipboard"}
+	}
+	args = append(args, url)
+	return exec.Command(cmd, args...).Run()
 }
