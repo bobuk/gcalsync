@@ -1,2 +1,5 @@
 client_id = ""
 client_secret = ""
+disable_reminders = false
+block_event_visibility = "private"
+authorized_ports = [8080, 8081, 8082]
