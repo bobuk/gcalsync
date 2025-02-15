@@ -47,6 +47,7 @@ Say goodbye to calendar conflicts and hello to seamless synchronization. 🎉
     client_secret = "your-client-secret"   # Your OAuth2 client secret
     disable_reminders = false              # Disable reminders for blocker events
     block_event_visibility = "private"     # Visibility of blocker events (private, public, or default)
+    authorized_ports = [8080, 8081, 8082]  # Ports that can be used for OAuth callback
     ```
 
     Don't forget to choose the appropriate OAuth2 consent screen settings and [add the necessary scopes](https://developers.google.com/identity/oauth2/web/guides/get-google-api-clientid) for the Google Calendar API, also double check that you are select "Desktop app" as application type.
@@ -102,6 +103,16 @@ By default blocker events will inherit your default Google Calendar reminder/ale
 ### 🕶️ Setting Block Event Visibility
 
 By default blocker events will be created with the visibility set to "private". If you want to change the visibility of blocker events, you can set the `block_event_visibility` field to "public" or "default" in the `.gcalsync.toml` configuration file.
+
+### 🔌 Configuring OAuth Callback Ports
+
+The application needs to start a temporary local server to receive the OAuth callback from Google. By default, it will try ports 8080, 8081, and 8082. You can customize these ports by setting the `authorized_ports` array in your configuration file. For example:
+
+```toml
+authorized_ports = [3000, 3001, 3002]
+```
+
+The application will try each port in order until it finds an available one. Make sure these ports are allowed by your firewall and not in use by other applications.
 
 ## 🤝 Contributing
 

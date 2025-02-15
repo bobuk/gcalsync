@@ -261,11 +261,12 @@ func copyUrlToClipboard(url string) error {
 		args = []string{"/c", "echo", url, "|", "clip"}
 	case "darwin":
 		cmd = "pbcopy"
-		args = []string{url}
 	default: // "linux", "freebsd", "openbsd", "netbsd"
 		cmd = "xclip"
 		args = []string{"-selection", "clipboard"}
 	}
-	args = append(args, url)
-	return exec.Command(cmd, args...).Run()
+
+	command := exec.Command(cmd, args...)
+	command.Stdin = strings.NewReader(url)
+	return command.Run()
 }
