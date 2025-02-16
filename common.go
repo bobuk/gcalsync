@@ -27,18 +27,6 @@ type GoogleConfig struct {
 	ClientSecret string `toml:"client_secret"`
 }
 
-type CalDavConfig struct {
-	URL      string `toml:"url"`
-	UserName string `toml:"username"`
-	Password string `toml:"password"`
-}
-
-type Office365Config struct {
-	ClientID     string `toml:"client_id"`
-	ClientSecret string `toml:"client_secret"`
-	ClientTenant string `toml:"tenant_id"`
-}
-
 type GeneralConfig struct {
 	DisableReminders bool   `toml:"disable_reminders"`
 	EventVisibility  string `toml:"block_event_visibility"`
@@ -47,10 +35,8 @@ type GeneralConfig struct {
 }
 
 type Config struct {
-	General   GeneralConfig   `toml:"general"`
-	Google    GoogleConfig    `toml:"google"`
-	CalDav    CalDavConfig    `toml:"caldav"`
-	Office365 Office365Config `toml:"office365"`
+	General GeneralConfig `toml:"general"`
+	Google  GoogleConfig  `toml:"google"`
 }
 
 var oauthConfig *oauth2.Config

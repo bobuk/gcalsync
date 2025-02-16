@@ -126,7 +126,7 @@ disable_reminders = true            # Set reminders on O_o events or not
 verbosity_level = 1                 # How much chatter to spill out when running sync
 ```
 
-When support for other services will be added, the configuration file will be extended with additional sections, e.g. to include `[caldav]`, `[apple]`, and `[office365]`, e.g.:
+**When support for other services is added**, the configuration file will be extended with additional sections, e.g. to include `[caldav]`, `[apple]`, and `[office365]`, e.g.:
 
 ```toml
 [caldav]
