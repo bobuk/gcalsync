@@ -22,12 +22,34 @@ import (
 	"google.golang.org/api/option"
 )
 
-type Config struct {
-	ClientID         string `toml:"client_id"`
-	ClientSecret     string `toml:"client_secret"`
+type GoogleConfig struct {
+	ClientID     string `toml:"client_id"`
+	ClientSecret string `toml:"client_secret"`
+}
+
+type CalDavConfig struct {
+	URL      string `toml:"url"`
+	UserName string `toml:"username"`
+	Password string `toml:"password"`
+}
+
+type Office365Config struct {
+	ClientID     string `toml:"client_id"`
+	ClientSecret string `toml:"client_secret"`
+	ClientTenant string `toml:"tenant_id"`
+}
+
+type GeneralConfig struct {
 	DisableReminders bool   `toml:"disable_reminders"`
 	EventVisibility  string `toml:"block_event_visibility"`
 	AuthorizedPorts  []int  `toml:"authorized_ports"`
+}
+
+type Config struct {
+	General   GeneralConfig   `toml:"general"`
+	Google    GoogleConfig    `toml:"google"`
+	CalDav    CalDavConfig    `toml:"caldav"`
+	Office365 Office365Config `toml:"office365"`
 }
 
 var oauthConfig *oauth2.Config
@@ -35,8 +57,8 @@ var configDir string
 
 func initOAuthConfig(config *Config) {
 	oauthConfig = &oauth2.Config{
-		ClientID:     config.ClientID,
-		ClientSecret: config.ClientSecret,
+		ClientID:     config.Google.ClientID,
+		ClientSecret: config.Google.ClientSecret,
 		Endpoint:     google.Endpoint,
 		Scopes:       []string{calendar.CalendarScope},
 		// RedirectURL will be set dynamically in getTokenFromWeb
@@ -77,7 +99,7 @@ func openDB(filename string) (*sql.DB, error) {
 
 func getTokenFromWeb(config *oauth2.Config, cfg *Config) *oauth2.Token {
 	// Start local server
-	listener, err := findAvailablePort(cfg.AuthorizedPorts)
+	listener, err := findAvailablePort(cfg.General.AuthorizedPorts)
 	if err != nil {
 		log.Fatalf("Unable to start listener: %v", err)
 	}
