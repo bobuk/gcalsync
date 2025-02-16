@@ -43,10 +43,13 @@ Say goodbye to calendar conflicts and hello to seamless synchronization. 🎉
 4. Create a `.gcalsync.toml` file in the project directory with your OAuth2 credentials:
 
     ```toml
-    client_id = "your-client-id"           # Your OAuth2 client ID
-    client_secret = "your-client-secret"   # Your OAuth2 client secret
+    [general]
     disable_reminders = false              # Disable reminders for blocker events
     block_event_visibility = "private"     # Visibility of blocker events (private, public, or default)
+
+    [google]
+    client_id = "your-client-id"           # Your OAuth2 client ID
+    client_secret = "your-client-secret"   # Your OAuth2 client secret
     ```
 
     Don't forget to choose the appropriate OAuth2 consent screen settings and [add the necessary scopes](https://developers.google.com/identity/oauth2/web/guides/get-google-api-clientid) for the Google Calendar API, also double check that you are select "Desktop app" as application type.
@@ -102,6 +105,36 @@ By default blocker events will inherit your default Google Calendar reminder/ale
 ### 🕶️ Setting Block Event Visibility
 
 By default blocker events will be created with the visibility set to "private". If you want to change the visibility of blocker events, you can set the `block_event_visibility` field to "public" or "default" in the `.gcalsync.toml` configuration file.
+
+### Configuration File
+
+The `.gcalsync.toml` configuration file is used to store OAuth2 credentials and general settings for the program. You can customize the settings to suit your preferences and needs. The file should be located in the project directory or `~/.config/gcalsync/` directory.
+
+At a minimum, the configuration file should contain the following fields:
+
+```toml
+[google]
+client_id = "your-client-id"
+client_secret = "your-client-secret"
+```
+Additional sections and fields can be added to configure the program behavior:
+
+```toml
+[general]
+block_event_visibility = "private"  # Keep O_o event public or private
+disable_reminders = true            # Set reminders on O_o events or not
+verbosity_level = 1                 # How much chatter to spill out when running sync
+```
+
+When support for other services will be added, the configuration file will be extended with additional sections, e.g. to include `[caldav]`, `[apple]`, and `[office365]`, e.g.:
+
+```toml
+[caldav]
+url = "https://example.com/calendar"
+username = "user"
+password = "password"
+```
+
 
 ## 🤝 Contributing
 
