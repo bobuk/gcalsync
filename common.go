@@ -161,8 +161,17 @@ func getClient(ctx context.Context, config *oauth2.Config, db *sql.DB, accountNa
 	tokenSource := config.TokenSource(ctx, &token)
 	newToken, err := tokenSource.Token()
 	if err != nil {
-		if strings.Contains(err.Error(), "Token has been expired or revoked") || strings.Contains(err.Error(), "invalid_grant") {
+		if strings.Contains(err.Error(), "token expired") ||
+			strings.Contains(err.Error(), "Token has been expired or revoked") ||
+			strings.Contains(err.Error(), "invalid_grant") ||
+			strings.Contains(err.Error(), "oauth2: token expired and refresh token is not set") {
 			fmt.Printf("  ❗️ Token expired or revoked for account %s. Obtaining a new token.\n", accountName)
+			// Delete the existing invalid token
+			_, err := db.Exec("DELETE FROM tokens WHERE account_name = ?", accountName)
+			if err != nil {
+				log.Printf("Warning: Failed to delete invalid token: %v", err)
+			}
+			// Get a new token from the web
 			newToken = getTokenFromWeb(config, cfg)
 			saveToken(db, accountName, newToken)
 			return config.Client(ctx, newToken)
