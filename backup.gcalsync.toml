@@ -7,12 +7,3 @@ block_event_visibility = "private" # Keep O_o event public or private
 client_id = ""     # Get these from the Google Developer Console
 client_secret = "" # Get these from the Google Developer
 
-[caldav]
-url = ""      # URL of the CalDAV server
-username = "" # Username for the CalDAV server
-password = "" # Password for the CalDAV server
-
-[office365]
-client_id = ""     # Get these from the Azure Portal
-client_secret = "" # Get these from the Azure Portal
-tenant_id = ""     # Get these from the Azure Portal, make sure that the tenant has the correct permissions
