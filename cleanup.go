@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"google.golang.org/api/calendar/v3"
+	"google.golang.org/api/option"
 )
 
 func cleanupCalendars() {
@@ -27,7 +28,7 @@ func cleanupCalendars() {
 
 	for accountName, calendarIDs := range calendars {
 		client := getClient(ctx, oauthConfig, db, accountName, config)
-		calendarService, err := calendar.New(client)
+		calendarService, err := calendar.NewService(ctx, option.WithHTTPClient(client))
 		if err != nil {
 			log.Fatalf("Error creating calendar client: %v", err)
 		}

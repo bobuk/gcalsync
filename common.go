@@ -22,12 +22,21 @@ import (
 	"google.golang.org/api/option"
 )
 
-type Config struct {
-	ClientID         string `toml:"client_id"`
-	ClientSecret     string `toml:"client_secret"`
+type GoogleConfig struct {
+	ClientID     string `toml:"client_id"`
+	ClientSecret string `toml:"client_secret"`
+}
+
+type GeneralConfig struct {
 	DisableReminders bool   `toml:"disable_reminders"`
 	EventVisibility  string `toml:"block_event_visibility"`
 	AuthorizedPorts  []int  `toml:"authorized_ports"`
+	Verbosity        int    `toml:"verbosity"`
+}
+
+type Config struct {
+	General GeneralConfig `toml:"general"`
+	Google  GoogleConfig  `toml:"google"`
 }
 
 var oauthConfig *oauth2.Config
@@ -35,8 +44,8 @@ var configDir string
 
 func initOAuthConfig(config *Config) {
 	oauthConfig = &oauth2.Config{
-		ClientID:     config.ClientID,
-		ClientSecret: config.ClientSecret,
+		ClientID:     config.Google.ClientID,
+		ClientSecret: config.Google.ClientSecret,
 		Endpoint:     google.Endpoint,
 		Scopes:       []string{calendar.CalendarScope},
 		// RedirectURL will be set dynamically in getTokenFromWeb
@@ -54,12 +63,76 @@ func readConfig(filename string) (*Config, error) {
 		configDir = os.Getenv("HOME") + "/.config/gcalsync/"
 	}
 
+	// Check the config file format an update it to new, if it is old
+	err = upadteConfigFormatIfNeeded(data, configDir, filename)
+	if err != nil {
+		return nil, err
+	}
 	var config Config
 	if err := toml.Unmarshal(data, &config); err != nil {
 		return nil, err
 	}
 
 	return &config, nil
+}
+
+func upadteConfigFormatIfNeeded(data []byte, configDir, filename string) error {
+	type oldConfig struct {
+		DisableReminders bool   `toml:"disable_reminders"`
+		EventVisibility  string `toml:"block_event_visibility"`
+		AuthorizedPorts  []int  `toml:"authorized_ports"`
+		ClientID         string `toml:"client_id"`
+		ClientSecret     string `toml:"client_secret"`
+		Verbosity        int    `toml:"verbosity_level"`
+	}
+	var old oldConfig
+	if err := toml.Unmarshal(data, &old); err != nil {
+		return err
+	}
+	if old.ClientID == "" || old.ClientSecret == "" {
+		var cfg Config
+		if err := toml.Unmarshal(data, &cfg); err != nil {
+			return err
+		}
+		// The config is already in the new format or it is empty
+		return nil
+	}
+	fmt.Printf("⚠️ Old config file format detected. Updating to new format...\n")
+
+	// Convert old config to new format
+	newConfig := Config{
+		General: GeneralConfig{
+			DisableReminders: old.DisableReminders,
+			EventVisibility:  old.EventVisibility,
+			AuthorizedPorts:  old.AuthorizedPorts,
+			Verbosity:        old.Verbosity,
+		},
+		Google: GoogleConfig{
+			ClientID:     old.ClientID,
+			ClientSecret: old.ClientSecret,
+		},
+	}
+	data, err := toml.Marshal(newConfig)
+	if err != nil {
+		return err
+	}
+
+	// Move the old config file to a backup
+	if _, err := os.Stat(configDir + filename); err == nil {
+		timStamp := time.Now().Format("2006-01-02-150405")
+		backupFilename := fmt.Sprintf("%s%s.bak-%s", configDir, filename, timStamp)
+		err = os.Rename(configDir+filename, backupFilename)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("  ℹ️ Old config file moved to %s\n", backupFilename)
+	}
+	err = os.WriteFile(configDir+filename, data, 0644)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("✅ Config file updated to new format and saved to %s\n", configDir+filename)
+	return nil
 }
 
 func openDB(filename string) (*sql.DB, error) {
@@ -77,7 +150,7 @@ func openDB(filename string) (*sql.DB, error) {
 
 func getTokenFromWeb(config *oauth2.Config, cfg *Config) *oauth2.Token {
 	// Start local server
-	listener, err := findAvailablePort(cfg.AuthorizedPorts)
+	listener, err := findAvailablePort(cfg.General.AuthorizedPorts)
 	if err != nil {
 		log.Fatalf("Unable to start listener: %v", err)
 	}

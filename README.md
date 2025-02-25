@@ -43,11 +43,14 @@ Say goodbye to calendar conflicts and hello to seamless synchronization. 🎉
 4. Create a `.gcalsync.toml` file in the project directory with your OAuth2 credentials:
 
     ```toml
-    client_id = "your-client-id"           # Your OAuth2 client ID
-    client_secret = "your-client-secret"   # Your OAuth2 client secret
+    [general]
     disable_reminders = false              # Disable reminders for blocker events
     block_event_visibility = "private"     # Visibility of blocker events (private, public, or default)
     authorized_ports = [8080, 8081, 8082]  # Ports that can be used for OAuth callback
+    
+    [google]
+    client_id = "your-client-id"           # Your OAuth2 client ID
+    client_secret = "your-client-secret"   # Your OAuth2 client secret
     ```
 
     Don't forget to choose the appropriate OAuth2 consent screen settings and [add the necessary scopes](https://developers.google.com/identity/oauth2/web/guides/get-google-api-clientid) for the Google Calendar API, also double check that you are select "Desktop app" as application type.
@@ -104,15 +107,37 @@ By default blocker events will inherit your default Google Calendar reminder/ale
 
 By default blocker events will be created with the visibility set to "private". If you want to change the visibility of blocker events, you can set the `block_event_visibility` field to "public" or "default" in the `.gcalsync.toml` configuration file.
 
-### 🔌 Configuring OAuth Callback Ports
+### Configuration File
 
-The application needs to start a temporary local server to receive the OAuth callback from Google. By default, it will try ports 8080, 8081, and 8082. You can customize these ports by setting the `authorized_ports` array in your configuration file. For example:
+The `.gcalsync.toml` configuration file is used to store OAuth2 credentials and general settings for the program. You can customize the settings to suit your preferences and needs. The file should be located in the project directory or `~/.config/gcalsync/` directory.
+
+At a minimum, the configuration file should contain the following fields:
 
 ```toml
-authorized_ports = [3000, 3001, 3002]
+[google]
+client_id = "your-client-id"
+client_secret = "your-client-secret"
+```
+Additional sections and fields can be added to configure the program behavior:
+
+```toml
+[general]
+block_event_visibility = "private"    # Keep O_o event public or private
+disable_reminders = true              # Set reminders on O_o events or not
+verbosity_level = 1                   # How much chatter to spill out when running sync
+authorized_ports = [3000, 3001, 3002] # Casllback ports to listen to for OAuth token response
 ```
 
-The application will try each port in order until it finds an available one. Make sure these ports are allowed by your firewall and not in use by other applications.
+#### 🔌 Configuration Parameters
+
+- `[google]` section
+  - `client_id`: Your Google app client ID
+  -  `client_secret` Your Google app configuration secret
+- `[general]` section
+  - `authorized_ports`: The application needs to start a temporary local server to receive the OAuth callback from Google. By default, it will try ports 8080, 8081, and 8082. You can customize these ports by setting the `authorized_ports` array in your configuration file. The application will try each port in order until it finds an available one. Make sure these ports are allowed by your firewall and not in use by other applications.
+  - `block_event_visibility`: Defines whether you want to keep blocker events ("O_o") publicly visible or not. Posible values are `private` or `public`. If ommitted -- `public` is used.
+  - `disable_reminders`: Whether your blocker events should stay quite and **not** alert you. Possible values are `true` or `false`. default is `false`.
+  - `verbosity_level`: How "chatty" you want the app to be 1..3 with 1 being mostly quite and 3 giving you full details of what it is doing.
 
 ## 🤝 Contributing
 
