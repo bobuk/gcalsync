@@ -46,7 +46,8 @@ Say goodbye to calendar conflicts and hello to seamless synchronization. 🎉
     [general]
     disable_reminders = false              # Disable reminders for blocker events
     block_event_visibility = "private"     # Visibility of blocker events (private, public, or default)
-
+    authorized_ports = [8080, 8081, 8082]  # Ports that can be used for OAuth callback
+    
     [google]
     client_id = "your-client-id"           # Your OAuth2 client ID
     client_secret = "your-client-secret"   # Your OAuth2 client secret
@@ -121,20 +122,22 @@ Additional sections and fields can be added to configure the program behavior:
 
 ```toml
 [general]
-block_event_visibility = "private"  # Keep O_o event public or private
-disable_reminders = true            # Set reminders on O_o events or not
-verbosity_level = 1                 # How much chatter to spill out when running sync
+block_event_visibility = "private"    # Keep O_o event public or private
+disable_reminders = true              # Set reminders on O_o events or not
+verbosity_level = 1                   # How much chatter to spill out when running sync
+authorized_ports = [3000, 3001, 3002] # Casllback ports to listen to for OAuth token response
 ```
 
-**When support for other services is added**, the configuration file will be extended with additional sections, e.g. to include `[caldav]`, `[apple]`, and `[office365]`, e.g.:
+#### 🔌 Configuration Parameters
 
-```toml
-[caldav]
-url = "https://example.com/calendar"
-username = "user"
-password = "password"
-```
-
+- `[google]` section
+  - `client_id`: Your Google app client ID
+  -  `client_secret` Your Google app configuration secret
+- `[general]` section
+  - `authorized_ports`: The application needs to start a temporary local server to receive the OAuth callback from Google. By default, it will try ports 8080, 8081, and 8082. You can customize these ports by setting the `authorized_ports` array in your configuration file. The application will try each port in order until it finds an available one. Make sure these ports are allowed by your firewall and not in use by other applications.
+  - `block_event_visibility`: Defines whether you want to keep blocker events ("O_o") publicly visible or not. Posible values are `private` or `public`. If ommitted -- `public` is used.
+  - `disable_reminders`: Whether your blocker events should stay quite and **not** alert you. Possible values are `true` or `false`. default is `false`.
+  - `verbosity_level`: How "chatty" you want the app to be 1..3 with 1 being mostly quite and 3 giving you full details of what it is doing.
 
 ## 🤝 Contributing
 
