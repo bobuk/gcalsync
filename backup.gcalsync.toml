@@ -6,4 +6,22 @@ authorized_ports = [8080, 8081, 8082] # Ports to listen on for OAuth token callb
 
 [google]
 client_id = ""     # Get these from the Google Developer Console
-client_secret = "" # Get these from the Google Developer
+client_secret = "" # Get these from the Google Developer Console
+
+# CalDAV servers configuration
+# Each server is defined in its own section under [caldav_servers.NAME]
+[caldav_servers]
+
+# Example work server
+[caldav_servers.work]
+server_url = ""    # CalDAV server URL (e.g., https://work.example.com/dav/)
+username = ""      # CalDAV server username
+password = ""      # CalDAV server password
+name = "Work Calendar"  # Optional friendly name
+
+# Example personal server
+[caldav_servers.personal]
+server_url = ""    # CalDAV server URL (e.g., https://personal.example.com/dav/)
+username = ""      # CalDAV server username
+password = ""      # CalDAV server password
+name = "Personal Calendar"  # Optional friendly name

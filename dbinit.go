@@ -101,4 +101,17 @@ func dbInit() {
 			log.Fatalf("Error updating db_version table: %v", err)
 		}
 	}
+	
+	if dbVersion == 4 {
+		_, err = db.Exec(`ALTER TABLE calendars ADD COLUMN provider_type TEXT DEFAULT 'google'`)
+		if err != nil {
+			log.Fatalf("Error adding provider_type column to calendars table: %v", err)
+		}
+
+		dbVersion = 5
+		_, err = db.Exec(`UPDATE db_version SET version = 5 WHERE name = 'gcalsync'`)
+		if err != nil {
+			log.Fatalf("Error updating db_version table: %v", err)
+		}
+	}
 }
