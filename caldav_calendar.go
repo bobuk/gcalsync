@@ -237,6 +237,63 @@ func (c *CalDAVProvider) ListEvents(calendarID string, timeMin, timeMax time.Tim
 	return result, nil
 }
 
+func (c *CalDAVProvider) GetEvent(calendarID string, eventID string) (*Event, error) {
+	calURL, err := url.Parse(calendarID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid calendar URL: %w", err)
+	}
+
+	// Construct the path to the event file
+	path := calURL.Path + "/" + eventID + ".ics"
+
+	// Get the calendar object
+	object, err := c.client.GetCalendarObject(c.ctx, path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get event: %w", err)
+	}
+
+	calendar := object.Data
+
+	// Find the VEVENT component
+	var eventComp *ical.Component
+	for _, comp := range calendar.Component.Children {
+		if comp.Name == "VEVENT" {
+			eventComp = comp
+			break
+		}
+	}
+
+	if eventComp == nil {
+		return nil, fmt.Errorf("no VEVENT component found in calendar object")
+	}
+
+	// Extract event properties
+	uid := getTextProp(eventComp.Props, "UID")
+	summary := getTextProp(eventComp.Props, "SUMMARY")
+	description := getTextProp(eventComp.Props, "DESCRIPTION")
+	status := getTextProp(eventComp.Props, "STATUS")
+	if status == "" {
+		status = "confirmed" // Default status if not specified
+	} else {
+		// Convert from iCalendar status format (e.g., "CONFIRMED") to lowercase
+		status = strings.ToLower(status)
+	}
+
+	// Parse dates
+	start, _ := eventComp.Props.DateTime("DTSTART", time.UTC)
+	end, _ := eventComp.Props.DateTime("DTEND", time.UTC)
+
+	// Create Event object
+	return &Event{
+		ID:          uid,
+		Summary:     summary,
+		Description: description,
+		Start:       start,
+		End:         end,
+		Status:      status,
+	}, nil
+}
+
 // Helper function to get text property safely
 func getTextProp(props ical.Props, name string) string {
 	prop := props.Get(name)

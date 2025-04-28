@@ -10,6 +10,7 @@ type CalendarProvider interface {
 	UpdateEvent(calendarID string, eventID string, event *Event) error
 	DeleteEvent(calendarID string, eventID string) error
 	ListEvents(calendarID string, timeMin, timeMax time.Time) ([]*Event, error)
+	GetEvent(calendarID string, eventID string) (*Event, error)
 }
 
 type Event struct {

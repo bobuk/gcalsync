@@ -22,66 +22,17 @@ func cleanupCalendars() {
 	}
 	defer db.Close()
 
-	calendars := getCalendarsFromDB(db)
-
 	ctx := context.Background()
 	
-	// Create provider instances for each account
-	providers = make(map[string]map[string]CalendarProvider)
-	
+	// Use the calendar factory to get all providers
+	calendarFactory := NewCalendarFactory(ctx, config, db)
+	providers, calendars, err := calendarFactory.GetAllCalendars()
+	if err != nil {
+		log.Fatalf("Error initializing calendar providers: %v", err)
+	}
+
 	for accountName, calendarInfos := range calendars {
 		fmt.Printf("📅 Setting up account: %s\n", accountName)
-		providers[accountName] = make(map[string]CalendarProvider)
-		
-		// Initialize providers for each type needed by this account
-		for i, calInfo := range calendarInfos {
-			switch calInfo.ProviderType {
-			case "google":
-				if _, exists := providers[accountName]["google"]; !exists {
-					client := getClient(ctx, oauthConfig, db, accountName, config)
-					googleProvider, err := NewGoogleCalendarProvider(ctx, client)
-					if err != nil {
-						log.Fatalf("Error creating Google calendar provider: %v", err)
-					}
-					providers[accountName]["google"] = googleProvider
-				}
-				
-			case "caldav":
-				// Get the server configuration from provider_config
-				var serverConfig CalDAVConfig
-				serverName := calInfo.ProviderConfig
-				
-				// If there's no server name, we need the user to reconfigure
-				if serverName == "" || serverName == "default" {
-					log.Fatalf("Error: Calendar references removed legacy CalDAV configuration. Please remove and re-add this calendar using: ./gcalsync add")
-				}
-				
-				// Use the server from CalDAV servers config
-				if server, ok := config.CalDAVs[serverName]; ok {
-					serverConfig = server
-				} else {
-					log.Fatalf("Error: CalDAV server '%s' not found in configuration", serverName)
-				}
-				
-				// Create a provider key that includes the server name
-				providerKey := "caldav-" + serverName
-				
-				// Only create the provider if we don't already have one for this server
-				if _, exists := providers[accountName][providerKey]; !exists {
-					caldavProvider, err := NewCalDAVProvider(ctx, serverConfig.ServerURL, serverConfig.Username, serverConfig.Password)
-					if err != nil {
-						log.Fatalf("Error connecting to CalDAV server %s: %v", serverName, err)
-					}
-					providers[accountName][providerKey] = caldavProvider
-				}
-				
-				// Update the calendar info to use the correct provider key
-				calendarInfos[i].ProviderKey = providerKey
-				
-			default:
-				log.Fatalf("Error: Unsupported provider type: %s", calInfo.ProviderType)
-			}
-		}
 
 		for _, calInfo := range calendarInfos {
 			fmt.Printf("🧹 Cleaning up calendar: %s\n", calInfo.ID)
@@ -102,7 +53,7 @@ func cleanupCalendars() {
 		}
 	}
 
-	fmt.Println("Calendars desynced successfully")
+	fmt.Println("Calendars cleaned up successfully")
 }
 
 // Legacy function for backward compatibility

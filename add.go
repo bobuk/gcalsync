@@ -7,9 +7,6 @@ import (
 	"log"
 	"os"
 	"strings"
-
-	"google.golang.org/api/calendar/v3"
-	"google.golang.org/api/option"
 )
 
 func addCalendar() {
@@ -44,17 +41,18 @@ func addCalendar() {
 
 	ctx := context.Background()
 	var providerConfig string
+	
+	// Use CalendarFactory to create and validate provider
+	calendarFactory := NewCalendarFactory(ctx, config, db)
 
 	// Validate calendar access based on provider type
 	if providerType == "google" {
-		client := getClient(ctx, oauthConfig, db, accountName, config)
-
-		calendarService, err := calendar.NewService(ctx, option.WithHTTPClient(client))
+		provider, err := calendarFactory.CreateCalendarProvider(providerType, accountName, "")
 		if err != nil {
-			log.Fatalf("Error creating calendar client: %v", err)
+			log.Fatalf("Error creating Google calendar provider: %v", err)
 		}
-
-		_, err = calendarService.CalendarList.Get(calendarID).Do()
+		
+		err = calendarFactory.ValidateCalendarAccess(provider, calendarID)
 		if err != nil {
 			log.Fatalf("Error retrieving Google calendar: %v", err)
 		}
@@ -64,10 +62,6 @@ func addCalendar() {
 			log.Fatalf("Error: No CalDAV server configurations found in .gcalsync.toml")
 		}
 
-		// Use the server configuration
-		var serverName string
-		var serverConfig CalDAVConfig
-		
 		// List available servers for selection
 		fmt.Println("Available CalDAV servers:")
 		servers := make([]string, 0, len(config.CalDAVs))
@@ -92,17 +86,18 @@ func addCalendar() {
 			log.Fatalf("Error: Invalid server selection")
 		}
 		
-		serverName = servers[serverIndex]
-		serverConfig = config.CalDAVs[serverName]
+		serverName := servers[serverIndex]
+		serverConfig := config.CalDAVs[serverName]
 		
 		fmt.Printf("Using CalDAV server: %s\n", serverConfig.ServerURL)
 		
-		caldavProvider, err := NewCalDAVProvider(ctx, serverConfig.ServerURL, serverConfig.Username, serverConfig.Password)
+		// Create and validate provider using the factory
+		provider, err := calendarFactory.CreateCalendarProvider(providerType, accountName, serverName)
 		if err != nil {
-			log.Fatalf("Error connecting to CalDAV server: %v", err)
+			log.Fatalf("Error creating CalDAV provider: %v", err)
 		}
 
-		err = caldavProvider.GetCalendar(calendarID)
+		err = calendarFactory.ValidateCalendarAccess(provider, calendarID)
 		if err != nil {
 			log.Fatalf("Error retrieving CalDAV calendar: %v", err)
 		}

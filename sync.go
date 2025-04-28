@@ -30,67 +30,18 @@ func syncCalendars() {
 		log.Printf("Warning: Failed to add provider_config column: %v", err)
 	}
 
-	calendars := getCalendarsFromDB(db)
-
 	ctx := context.Background()
 	fmt.Println("🚀 Starting calendar synchronization...")
 	
-	// Create provider instances for each account
-	providers = make(map[string]map[string]CalendarProvider)
-	
+	// Use the calendar factory to get all providers
+	calendarFactory := NewCalendarFactory(ctx, config, db)
+	providers, calendars, err := calendarFactory.GetAllCalendars()
+	if err != nil {
+		log.Fatalf("Error initializing calendar providers: %v", err)
+	}
+
 	for accountName, calendarInfos := range calendars {
 		fmt.Printf("📅 Setting up account: %s\n", accountName)
-		providers[accountName] = make(map[string]CalendarProvider)
-		
-		// Initialize providers for each type needed by this account
-		for i, calInfo := range calendarInfos {
-			switch calInfo.ProviderType {
-			case "google":
-				if _, exists := providers[accountName]["google"]; !exists {
-					client := getClient(ctx, oauthConfig, db, accountName, config)
-					googleProvider, err := NewGoogleCalendarProvider(ctx, client)
-					if err != nil {
-						log.Fatalf("Error creating Google calendar provider: %v", err)
-					}
-					providers[accountName]["google"] = googleProvider
-				}
-				
-			case "caldav":
-				// Get the server configuration based on provider_config
-				var serverConfig CalDAVConfig
-				serverName := calInfo.ProviderConfig
-				
-				// If there's no server name stored, we need to ask the user to reconfigure this calendar
-				if serverName == "" || serverName == "default" {
-					log.Fatalf("Error: Calendar references removed legacy CalDAV configuration. Please remove and re-add this calendar using: ./gcalsync add")
-				}
-				
-				// Use the server from the CalDAV servers config
-				if server, ok := config.CalDAVs[serverName]; ok {
-					serverConfig = server
-				} else {
-					log.Fatalf("Error: CalDAV server '%s' not found in configuration", serverName)
-				}
-				
-				// Create a provider key that includes the server name to allow multiple servers
-				providerKey := "caldav-" + serverName
-				
-				// Only create the provider if we don't already have one for this server
-				if _, exists := providers[accountName][providerKey]; !exists {
-					caldavProvider, err := NewCalDAVProvider(ctx, serverConfig.ServerURL, serverConfig.Username, serverConfig.Password)
-					if err != nil {
-						log.Fatalf("Error connecting to CalDAV server %s: %v", serverName, err)
-					}
-					providers[accountName][providerKey] = caldavProvider
-				}
-				
-				// Update the calendar info to use the correct provider key
-				calendarInfos[i].ProviderKey = providerKey
-				
-			default:
-				log.Fatalf("Error: Unsupported provider type: %s", calInfo.ProviderType)
-			}
-		}
 		
 		// Sync each calendar using the appropriate provider
 		for _, calInfo := range calendarInfos {
@@ -107,7 +58,7 @@ func syncCalendars() {
 				log.Fatalf("Error: Provider not found for key: %s", providerKey)
 			}
 			
-			syncCalendarWithProvider(db, provider, calInfo.ID, calendars, accountName, useReminders, eventVisibility, calInfo.ProviderType)
+			syncCalendarWithProvider(db, provider, calInfo.ID, calendars, accountName, useReminders, eventVisibility, calInfo.ProviderType, providers)
 		}
 	}
 
@@ -157,10 +108,17 @@ func getCalendarsFromDB(db *sql.DB) map[string][]CalendarInfo {
 	return calendars
 }
 
-// Map of account names to map of provider types to providers
-var providers map[string]map[string]CalendarProvider
-
-func syncCalendarWithProvider(db *sql.DB, provider CalendarProvider, calendarID string, calendars map[string][]CalendarInfo, accountName string, useReminders bool, eventVisibility string, providerType string) {
+func syncCalendarWithProvider(
+	db *sql.DB, 
+	provider CalendarProvider, 
+	calendarID string, 
+	calendars map[string][]CalendarInfo, 
+	accountName string, 
+	useReminders bool, 
+	eventVisibility string, 
+	providerType string,
+	providers map[string]map[string]CalendarProvider,
+) {
 	
 	now := time.Now()
 	startOfCurrentMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
@@ -303,7 +261,7 @@ func syncCalendarWithProvider(db *sql.DB, provider CalendarProvider, calendarID 
 						// Try to get the event from the original calendar to verify it's truly gone
 						var sourceEvent *Event
 						// We'll catch the error later if the event doesn't exist
-						sourceEvent, _ = getEventFromProvider(provider, calendarID, originEventID)
+						sourceEvent, _ = provider.GetEvent(calendarID, originEventID)
 						
 						if sourceEvent == nil || sourceEvent.Status == "cancelled" {
 							fmt.Printf("    🚩 Event marked for deletion: %s\n", eventID)
@@ -317,7 +275,7 @@ func syncCalendarWithProvider(db *sql.DB, provider CalendarProvider, calendarID 
 					
 					// Check if the event still exists in the target calendar
 					var targetEvent *Event
-					targetEvent, err = getEventFromProvider(otherProvider, otherCalendarInfo.ID, eventID)
+					targetEvent, err = otherProvider.GetEvent(otherCalendarInfo.ID, eventID)
 					
 					alreadyDeleted := false
 					if err != nil || targetEvent == nil {
@@ -345,28 +303,4 @@ func syncCalendarWithProvider(db *sql.DB, provider CalendarProvider, calendarID 
 			}
 		}
 	}
-}
-
-// Helper function to get a single event from a provider
-func getEventFromProvider(provider CalendarProvider, calendarID, eventID string) (*Event, error) {
-	// This implementation is a temporary solution since the interface doesn't have a GetEvent method
-	// Each provider should implement GetEvent in future versions
-	// For now, we'll query over a large time range to try to find the event
-	
-	// Query over a 10-year range to try to find the event
-	startTime := time.Now().AddDate(-5, 0, 0) // 5 years ago
-	endTime := time.Now().AddDate(5, 0, 0)    // 5 years in future
-	
-	events, err := provider.ListEvents(calendarID, startTime, endTime)
-	if err != nil {
-		return nil, err
-	}
-	
-	for _, event := range events {
-		if event.ID == eventID {
-			return event, nil
-		}
-	}
-	
-	return nil, fmt.Errorf("event not found")
 }

@@ -111,3 +111,22 @@ func (g *GoogleCalendarProvider) ListEvents(calendarID string, timeMin, timeMax 
 
 	return result, nil
 }
+
+func (g *GoogleCalendarProvider) GetEvent(calendarID string, eventID string) (*Event, error) {
+	item, err := g.service.Events.Get(calendarID, eventID).Do()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get event: %w", err)
+	}
+
+	start, _ := time.Parse(time.RFC3339, item.Start.DateTime)
+	end, _ := time.Parse(time.RFC3339, item.End.DateTime)
+
+	return &Event{
+		ID:          item.Id,
+		Summary:     item.Summary,
+		Description: item.Description,
+		Start:       start,
+		End:         end,
+		Status:      item.Status,
+	}, nil
+}
