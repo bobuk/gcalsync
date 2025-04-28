@@ -8,10 +8,11 @@ Say goodbye to calendar conflicts and hello to seamless synchronization. 🎉
 
 ## 🌟 Features
 
--   🔄 Sync events from multiple Google Calendars across different accounts
+-   🔄 Sync events from multiple Google Calendars and CalDAV calendars (iCal, Nextcloud, etc.)
 -   🚫 Create "blocker" events in other calendars to prevent double bookings
 -   🗄️ Store access tokens and calendar data securely in a local SQLite database
 -   🔒 Authenticate with Google using the OAuth2 flow for desktop apps
+-   🌐 Support for CalDAV/iCal calendars through standard HTTP authentication
 -   🧹 Easy way to cleanup calendars and remove all blocker events with a single command
 
 ## 📋 Prerequisites
@@ -40,7 +41,7 @@ Say goodbye to calendar conflicts and hello to seamless synchronization. 🎉
     go mod download
     ```
 
-4. Create a `.gcalsync.toml` file in the project directory with your OAuth2 credentials:
+4. Create a `.gcalsync.toml` file in the project directory with your credentials:
 
     ```toml
     [general]
@@ -51,6 +52,13 @@ Say goodbye to calendar conflicts and hello to seamless synchronization. 🎉
     [google]
     client_id = "your-client-id"           # Your OAuth2 client ID
     client_secret = "your-client-secret"   # Your OAuth2 client secret
+    
+    # Optional: For CalDAV/iCal calendar support
+    [caldav_servers.work]
+    server_url = "https://caldav.example.com/dav/"  # CalDAV server URL
+    username = "your-username"                      # CalDAV username
+    password = "your-password"                      # CalDAV password
+    name = "Work Calendar"                          # Optional friendly name
     ```
 
     Don't forget to choose the appropriate OAuth2 consent screen settings and [add the necessary scopes](https://developers.google.com/identity/oauth2/web/guides/get-google-api-clientid) for the Google Calendar API, also double check that you are select "Desktop app" as application type.
@@ -85,7 +93,15 @@ Say goodbye to calendar conflicts and hello to seamless synchronization. 🎉
 
 ### 🆕 Adding a Calendar
 
-To add a new calendar to sync, run the `gcalsync add` command. You will be prompted to enter the account name and calendar ID. The program will guide you through the OAuth2 authentication process and store the access token securely in the local database.
+To add a new calendar to sync, run the `gcalsync add` command. You will be prompted to enter:
+
+1. The account name (a label to identify this calendar)
+2. The provider type (google or caldav)
+3. The calendar ID or URL:
+   - For Google calendars: typically your email address or a specific calendar ID
+   - For CalDAV calendars: the full URL to the calendar (e.g., https://caldav.example.com/dav/calendars/user/calendar-name/)
+
+For Google calendars, the program will guide you through the OAuth2 authentication process and store the access token securely in the local database. For CalDAV calendars, authentication is handled using the credentials specified in your config file.
 
 ### 🔄 Syncing Calendars
 
@@ -114,30 +130,39 @@ The `.gcalsync.toml` configuration file is used to store OAuth2 credentials and 
 At a minimum, the configuration file should contain the following fields:
 
 ```toml
-[google]
-client_id = "your-client-id"
-client_secret = "your-client-secret"
-```
-Additional sections and fields can be added to configure the program behavior:
-
-```toml
 [general]
 block_event_visibility = "private"    # Keep O_o event public or private
 disable_reminders = true              # Set reminders on O_o events or not
 verbosity_level = 1                   # How much chatter to spill out when running sync
-authorized_ports = [3000, 3001, 3002] # Casllback ports to listen to for OAuth token response
+authorized_ports = [3000, 3001, 3002] # Callback ports to listen to for OAuth token response
+
+[google]
+client_id = "your-client-id"          # Your Google app client ID
+client_secret = "your-client-secret"  # Your Google app configuration secret
+
+[caldav]
+server_url = "https://caldav.example.com/dav/" # CalDAV server URL
+username = "your-username"                     # CalDAV username
+password = "your-password"                     # CalDAV password
 ```
 
 #### 🔌 Configuration Parameters
 
-- `[google]` section
-  - `client_id`: Your Google app client ID
-  -  `client_secret` Your Google app configuration secret
 - `[general]` section
   - `authorized_ports`: The application needs to start a temporary local server to receive the OAuth callback from Google. By default, it will try ports 8080, 8081, and 8082. You can customize these ports by setting the `authorized_ports` array in your configuration file. The application will try each port in order until it finds an available one. Make sure these ports are allowed by your firewall and not in use by other applications.
-  - `block_event_visibility`: Defines whether you want to keep blocker events ("O_o") publicly visible or not. Posible values are `private` or `public`. If ommitted -- `public` is used.
+  - `block_event_visibility`: Defines whether you want to keep blocker events ("O_o") publicly visible or not. Possible values are `private` or `public`. If omitted -- `public` is used.
   - `disable_reminders`: Whether your blocker events should stay quite and **not** alert you. Possible values are `true` or `false`. default is `false`.
   - `verbosity_level`: How "chatty" you want the app to be 1..3 with 1 being mostly quite and 3 giving you full details of what it is doing.
+
+- `[google]` section
+  - `client_id`: Your Google app client ID
+  - `client_secret`: Your Google app configuration secret
+
+- `[caldav_servers.<name>]` section
+  - `server_url`: Base URL of your CalDAV server
+  - `username`: Username for CalDAV authentication
+  - `password`: Password for CalDAV authentication
+  - `name`: Optional friendly name for the CalDAV server
 
 ## 🤝 Contributing
 
@@ -152,4 +177,6 @@ This project is licensed under the [MIT License](https://opensource.org/licenses
 -   The terrible [Go](https://golang.org/) programming language
 -   The [Google Calendar API](https://developers.google.com/calendar) for making this project almost impossible to implement
 -   The [OAuth2](https://oauth.net/2/) protocol for very missleading but secure authentication
--   The [SQLite](https://www.sqlite.org/) database for lightweight and efficient storage, the only one that added no pain.
+-   The [SQLite](https://www.sqlite.org/) database for lightweight and efficient storage, the only one that added no pain
+-   The [go-webdav](https://github.com/emersion/go-webdav) library for excellent WebDAV/CalDAV support
+-   The [go-ical](https://github.com/emersion/go-ical) library for parsing and generating iCalendar data

@@ -27,6 +27,13 @@ type GoogleConfig struct {
 	ClientSecret string `toml:"client_secret"`
 }
 
+type CalDAVConfig struct {
+	ServerURL string `toml:"server_url"`
+	Username  string `toml:"username"`
+	Password  string `toml:"password"`
+	Name      string `toml:"name"`
+}
+
 type GeneralConfig struct {
 	DisableReminders bool   `toml:"disable_reminders"`
 	EventVisibility  string `toml:"block_event_visibility"`
@@ -35,8 +42,9 @@ type GeneralConfig struct {
 }
 
 type Config struct {
-	General GeneralConfig `toml:"general"`
-	Google  GoogleConfig  `toml:"google"`
+	General     GeneralConfig           `toml:"general"`
+	Google      GoogleConfig            `toml:"google"`
+	CalDAVs     map[string]CalDAVConfig `toml:"caldav_servers"` // CalDAV servers
 }
 
 var oauthConfig *oauth2.Config

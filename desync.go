@@ -2,13 +2,10 @@ package main
 
 import (
 	"context"
-	"database/sql"
+	"database/sql" 
 	"fmt"
 	"log"
-
-	"google.golang.org/api/calendar/v3"
-	"google.golang.org/api/googleapi"
-	"google.golang.org/api/option"
+	"strings"
 )
 
 func desyncCalendars() {
@@ -26,7 +23,15 @@ func desyncCalendars() {
 
 	fmt.Println("🚀 Starting calendar desynchronization...")
 
-	rows, err := db.Query("SELECT event_id, calendar_id, account_name FROM blocker_events")
+	// Use the calendar factory to get all providers
+	calendarFactory := NewCalendarFactory(ctx, config, db)
+	providers, _, err := calendarFactory.GetAllCalendars()
+	if err != nil {
+		log.Fatalf("Error initializing calendar providers: %v", err)
+	}
+
+	// Get all blocker events
+	rows, err := db.Query("SELECT be.event_id, be.calendar_id, be.account_name, c.provider_type, c.provider_config FROM blocker_events be LEFT JOIN calendars c ON be.calendar_id = c.calendar_id")
 	if err != nil {
 		log.Fatalf("❌ Error retrieving blocker events from database: %v", err)
 	}
@@ -38,8 +43,8 @@ func desyncCalendars() {
 	}
 
 	for rows.Next() {
-		var eventID, calendarID, accountName string
-		if err := rows.Scan(&eventID, &calendarID, &accountName); err != nil {
+		var eventID, calendarID, accountName, providerType, providerConfig string
+		if err := rows.Scan(&eventID, &calendarID, &accountName, &providerType, &providerConfig); err != nil {
 			log.Fatalf("❌ Error scanning blocker event row: %v", err)
 		}
 
@@ -48,18 +53,36 @@ func desyncCalendars() {
 			CalendarID string
 		}{EventID: eventID, CalendarID: calendarID})
 
-		client := getClient(ctx, oauthConfig, db, accountName, config)
-		calendarService, err := calendar.NewService(ctx, option.WithHTTPClient(client))
-		if err != nil {
-			log.Fatalf("❌ Error creating calendar client: %v", err)
+		// If provider type is empty, assume "google" for backward compatibility
+		if providerType == "" {
+			providerType = "google"
 		}
 
-		err = calendarService.Events.Delete(calendarID, eventID).Do()
+		// For CalDAV, construct the provider key
+		var providerKey string
+		if providerType == "caldav" {
+			if providerConfig == "" || providerConfig == "default" {
+				log.Fatalf("Error: Calendar references removed legacy CalDAV configuration. Please remove and re-add this calendar using: ./gcalsync add")
+			}
+			providerKey = "caldav-" + providerConfig
+		} else {
+			providerKey = providerType
+		}
+
+		// Get the appropriate provider
+		provider, ok := providers[accountName][providerKey]
+		if !ok {
+			// If provider isn't initialized for some reason, fail with error
+			log.Fatalf("Error: Provider not found for account %s, key %s. Please run sync or add command to set up the providers.", accountName, providerKey)
+		}
+
+		// Delete the event using the provider
+		err = provider.DeleteEvent(calendarID, eventID)
 		if err != nil {
-			if googleErr, ok := err.(*googleapi.Error); ok && googleErr.Code == 404 {
+			if strings.Contains(err.Error(), "not found") {
 				fmt.Printf("  ⚠️ Blocker event not found in calendar: %s\n", eventID)
 			} else {
-				log.Fatalf("❌ Error deleting blocker event: %v", err)
+				log.Printf("❌ Error deleting blocker event: %v", err)
 			}
 		} else {
 			fmt.Printf("  ✅ Blocker event deleted: %s\n", eventID)

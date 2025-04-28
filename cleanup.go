@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"google.golang.org/api/calendar/v3"
-	"google.golang.org/api/option"
 )
 
 func cleanupCalendars() {
@@ -22,27 +22,41 @@ func cleanupCalendars() {
 	}
 	defer db.Close()
 
-	calendars := getCalendarsFromDB(db)
-
 	ctx := context.Background()
+	
+	// Use the calendar factory to get all providers
+	calendarFactory := NewCalendarFactory(ctx, config, db)
+	providers, calendars, err := calendarFactory.GetAllCalendars()
+	if err != nil {
+		log.Fatalf("Error initializing calendar providers: %v", err)
+	}
 
-	for accountName, calendarIDs := range calendars {
-		client := getClient(ctx, oauthConfig, db, accountName, config)
-		calendarService, err := calendar.NewService(ctx, option.WithHTTPClient(client))
-		if err != nil {
-			log.Fatalf("Error creating calendar client: %v", err)
-		}
+	for accountName, calendarInfos := range calendars {
+		fmt.Printf("📅 Setting up account: %s\n", accountName)
 
-		for _, calendarID := range calendarIDs {
-			fmt.Printf("🧹 Cleaning up calendar: %s\n", calendarID)
-			cleanupCalendar(calendarService, calendarID)
-			db.Exec("DELETE FROM blocker_events WHERE calendar_id = ?", calendarID)
+		for _, calInfo := range calendarInfos {
+			fmt.Printf("🧹 Cleaning up calendar: %s\n", calInfo.ID)
+			
+			// Determine which provider to use
+			providerKey := calInfo.ProviderType
+			if calInfo.ProviderKey != "" {
+				providerKey = calInfo.ProviderKey
+			}
+			
+			provider := providers[accountName][providerKey]
+			if provider == nil {
+				log.Fatalf("Error: Provider not found for key: %s", providerKey)
+			}
+			
+			cleanupCalendarWithProvider(provider, calInfo.ID)
+			db.Exec("DELETE FROM blocker_events WHERE calendar_id = ?", calInfo.ID)
 		}
 	}
 
-	fmt.Println("Calendars desynced successfully")
+	fmt.Println("Calendars cleaned up successfully")
 }
 
+// Legacy function for backward compatibility
 func cleanupCalendar(calendarService *calendar.Service, calendarID string) {
 	// ctx := context.Background()
 	pageToken := ""
@@ -70,6 +84,28 @@ func cleanupCalendar(calendarService *calendar.Service, calendarID string) {
 		pageToken = events.NextPageToken
 		if pageToken == "" {
 			break
+		}
+	}
+}
+
+// New function that works with any CalendarProvider implementation
+func cleanupCalendarWithProvider(provider CalendarProvider, calendarID string) {
+	// Get all events for the next year (to ensure we catch all blockers)
+	now := time.Now()
+	oneYearFromNow := now.AddDate(1, 0, 0)
+
+	events, err := provider.ListEvents(calendarID, now, oneYearFromNow)
+	if err != nil {
+		log.Fatalf("Error retrieving events: %v", err)
+	}
+
+	for _, event := range events {
+		if strings.Contains(event.Summary, "O_o") {
+			err := provider.DeleteEvent(calendarID, event.ID)
+			fmt.Printf("Deleted event %s from calendar %s\n", event.Summary, calendarID)
+			if err != nil {
+				log.Fatalf("Error deleting blocker event: %v", err)
+			}
 		}
 	}
 }
