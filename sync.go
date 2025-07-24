@@ -20,6 +20,7 @@ func syncCalendars() {
 	}
 	useReminders := config.General.DisableReminders
 	eventVisibility := config.General.EventVisibility
+	ignoreBirthdays := config.General.IgnoreBirthdays
 
 	db, err := openDB(".gcalsync.db")
 	if err != nil {
@@ -41,7 +42,7 @@ func syncCalendars() {
 
 		for _, calendarID := range calendarIDs {
 			fmt.Printf("  ↪️ Syncing calendar: %s\n", calendarID)
-			syncCalendar(db, calendarService, calendarID, calendars, accountName, useReminders, eventVisibility)
+			syncCalendar(db, calendarService, calendarID, calendars, accountName, useReminders, eventVisibility, ignoreBirthdays)
 		}
 		fmt.Println("✅ Calendar synchronization completed successfully!")
 	}
@@ -63,7 +64,7 @@ func getCalendarsFromDB(db *sql.DB) map[string][]string {
 	return calendars
 }
 
-func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID string, calendars map[string][]string, accountName string, useReminders bool, eventVisibility string) {
+func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID string, calendars map[string][]string, accountName string, useReminders bool, eventVisibility string, ignoreBirthdays bool) {
 	config, err := readConfig(".gcalsync.toml")
 	if err != nil {
 		log.Fatalf("Error reading config file: %v", err)
@@ -100,6 +101,13 @@ func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID stri
 			if event.EventType == "workingLocation" {
 				continue
 			}
+
+			// Check if this is a birthday event and skip if ignore_birthdays is enabled
+			if ignoreBirthdays && event.EventType == "birthday" {
+				fmt.Printf("    🎂 Skipping birthday event: %s\n", event.Summary)
+				continue
+			}
+
 			if !strings.Contains(event.Summary, "O_o") {
 				fmt.Printf("    ✨ Syncing event: %s\n", event.Summary)
 				for otherAccountName, calendarIDs := range calendars {
