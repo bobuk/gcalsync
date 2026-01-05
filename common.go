@@ -32,6 +32,7 @@ type GeneralConfig struct {
 	EventVisibility  string `toml:"block_event_visibility"`
 	AuthorizedPorts  []int  `toml:"authorized_ports"`
 	Verbosity        int    `toml:"verbosity"`
+	IgnoreBirthdays  bool   `toml:"ignore_birthdays"`
 }
 
 type Config struct {
