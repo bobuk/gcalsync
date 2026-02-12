@@ -10,6 +10,7 @@ Say goodbye to calendar conflicts and hello to seamless synchronization. 🎉
 
 -   🔄 Sync events from multiple Google Calendars across different accounts
 -   🚫 Create "blocker" events in other calendars to prevent double bookings
+-   🎯 Per-calendar sync modes: `read` (source only), `write` (destination only), or `both` (bidirectional)
 -   🗄️ Store access tokens and calendar data securely in a local SQLite database
 -   🔒 Authenticate with Google using the OAuth2 flow for desktop apps
 -   🧹 Easy way to cleanup calendars and remove all blocker events with a single command
@@ -85,7 +86,17 @@ Say goodbye to calendar conflicts and hello to seamless synchronization. 🎉
 
 ### 🆕 Adding a Calendar
 
-To add a new calendar to sync, run the `gcalsync add` command. You will be prompted to enter the account name and calendar ID. The program will guide you through the OAuth2 authentication process and store the access token securely in the local database.
+To add a new calendar to sync, run the `gcalsync add` command. You will be prompted to enter the account name, calendar ID, and sync mode. The program will guide you through the OAuth2 authentication process and store the access token securely in the local database.
+
+The sync mode controls how the calendar participates in synchronization:
+
+| Mode | Events read from it? | Blocker events written to it? |
+|------|---------------------|-------------------------------|
+| `both` (default) | Yes | Yes |
+| `read` | Yes | No |
+| `write` | No | Yes |
+
+For example, if you set a work calendar to `read` mode, its events will create blockers in your other calendars, but no blocker events will be written back to it. Conversely, a `write`-only calendar will receive blocker events from other calendars but its own events won't be synced elsewhere.
 
 ### 🔄 Syncing Calendars
 
@@ -97,7 +108,7 @@ To desync your calendars and remove all blocker events, run the `gcalsync desync
 
 ### 📋 Listing Calendars
 
-To list all calendars that have been added to the local database, run the `gcalsync list` command. The program will display the account name and calendar ID for each calendar.
+To list all calendars that have been added to the local database, run the `gcalsync list` command. The program will display the account name, calendar ID, sync mode, and blocker event count for each calendar.
 
 ### 🎗️ Disabling Reminders
 

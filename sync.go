@@ -13,6 +13,11 @@ import (
 	"google.golang.org/api/option"
 )
 
+type CalendarEntry struct {
+	ID   string
+	Mode string
+}
+
 func syncCalendars() {
 	config, err := readConfig(".gcalsync.toml")
 	if err != nil {
@@ -32,7 +37,7 @@ func syncCalendars() {
 
 	ctx := context.Background()
 	fmt.Println("🚀 Starting calendar synchronization...")
-	for accountName, calendarIDs := range calendars {
+	for accountName, entries := range calendars {
 		fmt.Printf("📅 Syncing calendars for account: %s\n", accountName)
 		client := getClient(ctx, oauthConfig, db, accountName, config)
 		calendarService, err := calendar.NewService(ctx, option.WithHTTPClient(client))
@@ -40,9 +45,13 @@ func syncCalendars() {
 			log.Fatalf("Error creating calendar client: %v", err)
 		}
 
-		for _, calendarID := range calendarIDs {
-			fmt.Printf("  ↪️ Syncing calendar: %s\n", calendarID)
-			syncCalendar(db, calendarService, calendarID, calendars, accountName, useReminders, eventVisibility, ignoreBirthdays)
+		for _, entry := range entries {
+			if entry.Mode == "write" {
+				fmt.Printf("  ⏭️ Skipping read for write-only calendar: %s\n", entry.ID)
+				continue
+			}
+			fmt.Printf("  ↪️ Syncing calendar: %s (mode: %s)\n", entry.ID, entry.Mode)
+			syncCalendar(db, calendarService, entry.ID, calendars, accountName, useReminders, eventVisibility, ignoreBirthdays)
 		}
 		fmt.Println("✅ Calendar synchronization completed successfully!")
 	}
@@ -50,21 +59,21 @@ func syncCalendars() {
 	fmt.Println("Calendars synced successfully")
 }
 
-func getCalendarsFromDB(db *sql.DB) map[string][]string {
-	calendars := make(map[string][]string)
-	rows, _ := db.Query("SELECT account_name, calendar_id FROM calendars")
+func getCalendarsFromDB(db *sql.DB) map[string][]CalendarEntry {
+	calendars := make(map[string][]CalendarEntry)
+	rows, _ := db.Query("SELECT account_name, calendar_id, mode FROM calendars")
 	defer rows.Close()
 	for rows.Next() {
-		var accountName, calendarID string
-		if err := rows.Scan(&accountName, &calendarID); err != nil {
+		var accountName, calendarID, mode string
+		if err := rows.Scan(&accountName, &calendarID, &mode); err != nil {
 			log.Fatalf("Error scanning calendar row: %v", err)
 		}
-		calendars[accountName] = append(calendars[accountName], calendarID)
+		calendars[accountName] = append(calendars[accountName], CalendarEntry{ID: calendarID, Mode: mode})
 	}
 	return calendars
 }
 
-func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID string, calendars map[string][]string, accountName string, useReminders bool, eventVisibility string, ignoreBirthdays bool) {
+func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID string, calendars map[string][]CalendarEntry, accountName string, useReminders bool, eventVisibility string, ignoreBirthdays bool) {
 	config, err := readConfig(".gcalsync.toml")
 	if err != nil {
 		log.Fatalf("Error reading config file: %v", err)
@@ -110,9 +119,10 @@ func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID stri
 
 			if !strings.Contains(event.Summary, "O_o") {
 				fmt.Printf("    ✨ Syncing event: %s\n", event.Summary)
-				for otherAccountName, calendarIDs := range calendars {
-					for _, otherCalendarID := range calendarIDs {
-						if otherCalendarID != calendarID {
+				for otherAccountName, entries := range calendars {
+					for _, otherEntry := range entries {
+						otherCalendarID := otherEntry.ID
+						if otherCalendarID != calendarID && otherEntry.Mode != "read" {
 							var existingBlockerEventID string
 							var last_updated string
 							var originCalendarID string
@@ -210,9 +220,10 @@ func syncCalendar(db *sql.DB, calendarService *calendar.Service, calendarID stri
 
 	// Delete blocker events that not exists from this calendar in other calendars
 	fmt.Printf("    🗑 Deleting blocker events that no longer exist in calendar %s from other calendars…\n", calendarID)
-	for otherAccountName, calendarIDs := range calendars {
-		for _, otherCalendarID := range calendarIDs {
-			if otherCalendarID != calendarID {
+	for otherAccountName, entries := range calendars {
+		for _, otherEntry := range entries {
+			otherCalendarID := otherEntry.ID
+			if otherCalendarID != calendarID && otherEntry.Mode != "read" {
 				client := getClient(ctx, oauthConfig, db, otherAccountName, config)
 				otherCalendarService, err := calendar.NewService(ctx, option.WithHTTPClient(client))
 				rows, err := db.Query("SELECT event_id, origin_event_id FROM blocker_events WHERE calendar_id = ? AND origin_calendar_id = ?", otherCalendarID, calendarID)
