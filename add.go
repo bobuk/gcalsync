@@ -33,6 +33,16 @@ func addCalendar() {
 	var calendarID string
 	fmt.Scanln(&calendarID)
 
+	fmt.Print("🔄 Enter sync mode (read/write/both) [both]: ")
+	var mode string
+	fmt.Scanln(&mode)
+	if mode == "" {
+		mode = "both"
+	}
+	if mode != "read" && mode != "write" && mode != "both" {
+		log.Fatalf("❌ Invalid mode: %s. Must be read, write, or both.", mode)
+	}
+
 	ctx := context.Background()
 
 	client := getClient(ctx, oauthConfig, db, accountName, config)
@@ -46,10 +56,10 @@ func addCalendar() {
 	if err != nil {
 		log.Fatalf("Error retrieving calendar: %v", err)
 	}
-	_, err = db.Exec(`INSERT INTO calendars (account_name, calendar_id) VALUES (?, ?)`, accountName, calendarID)
+	_, err = db.Exec(`INSERT INTO calendars (account_name, calendar_id, mode) VALUES (?, ?, ?)`, accountName, calendarID, mode)
 	if err != nil {
 		log.Fatalf("Error saving calendar ID: %v", err)
 	}
 
-	fmt.Printf("✅ Calendar %s added successfully for account %s\n", calendarID, accountName)
+	fmt.Printf("✅ Calendar %s added successfully for account %s (mode: %s)\n", calendarID, accountName, mode)
 }

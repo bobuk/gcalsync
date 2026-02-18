@@ -26,17 +26,17 @@ func cleanupCalendars() {
 
 	ctx := context.Background()
 
-	for accountName, calendarIDs := range calendars {
+	for accountName, entries := range calendars {
 		client := getClient(ctx, oauthConfig, db, accountName, config)
 		calendarService, err := calendar.NewService(ctx, option.WithHTTPClient(client))
 		if err != nil {
 			log.Fatalf("Error creating calendar client: %v", err)
 		}
 
-		for _, calendarID := range calendarIDs {
-			fmt.Printf("🧹 Cleaning up calendar: %s\n", calendarID)
-			cleanupCalendar(calendarService, calendarID)
-			db.Exec("DELETE FROM blocker_events WHERE calendar_id = ?", calendarID)
+		for _, entry := range entries {
+			fmt.Printf("🧹 Cleaning up calendar: %s\n", entry.ID)
+			cleanupCalendar(calendarService, entry.ID)
+			db.Exec("DELETE FROM blocker_events WHERE calendar_id = ?", entry.ID)
 		}
 	}
 
