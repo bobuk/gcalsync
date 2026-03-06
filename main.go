@@ -29,6 +29,8 @@ func main() {
 		cleanupCalendars()
 	case "list":
 		listCalendars()
+	case "delete":
+		deleteCalendar()
 	default:
 		fmt.Printf("Unknown command: %s\n", command)
 		os.Exit(1)
